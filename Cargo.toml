@@ -1,0 +1,8 @@
+[package]
+name = "brioche"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+ndarray = { version = "0.17.1", features = ["blas"] }
+rand = "0.9.2"
