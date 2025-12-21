@@ -6,3 +6,5 @@ edition = "2024"
 [dependencies]
 ndarray = { version = "0.17.1", features = ["blas"] }
 rand = "0.9.2"
+burn = { version = "~0.19", features = ["std", "tui", "train", "vision", "wgpu", "fusion"], default-features = false }
+anyhow = "1.0.100"
