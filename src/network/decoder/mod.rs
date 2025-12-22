@@ -1,16 +1,14 @@
+use anyhow::Result;
 use burn::prelude::Backend;
 use burn::tensor::{Tensor, TensorKind};
 
 mod residual_block;
 
-pub enum DecoderType {
+pub enum DecoderType<B: Backend> {
     MultiresConv,
-    ResidualBlock,
+    ResidualBlock(Tensor<B, 4>),
 }
 
-pub trait Decoder {
-    fn forward<B: Backend, const S: usize>(
-        &self,
-        arg: DecoderType,
-    ) -> Result<Tensor<B, S>, Box<dyn std::error::Error>>;
+pub trait Decoder<B: Backend, const S: usize> {
+    fn forward(&self, arg: DecoderType<B>) -> Result<Tensor<B, S>>;
 }

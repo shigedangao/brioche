@@ -1,3 +1,4 @@
+use super::{Decoder, DecoderType};
 use anyhow::{Result, anyhow};
 use burn::Tensor;
 use burn::nn::{BatchNorm, Relu, modules::conv::Conv2d};
@@ -5,14 +6,14 @@ use burn::prelude::Backend;
 
 pub struct SequentialNNModule<B: Backend> {
     relu: Relu,
-    conv: Conv2d<B>,
+    conv2d: Conv2d<B>,
     batch_norm: Option<BatchNorm<B>>,
 }
 
 impl<B: Backend> SequentialNNModule<B> {
     fn forward(&self, arg: Tensor<B, 4>) -> Tensor<B, 4> {
         let x = self.relu.forward(arg);
-        let x = self.conv.forward(x);
+        let x = self.conv2d.forward(x);
 
         match &self.batch_norm {
             Some(batch_norm) => batch_norm.forward(x),
@@ -21,8 +22,39 @@ impl<B: Backend> SequentialNNModule<B> {
     }
 }
 
+/// Residual block module
+///
+/// Based on the implementation in depth_pro/network/decoder.py L:96
+/// /!\ Note that the shortcut is not implemented as it seems unused.
 pub struct ResidualBlock<B: Backend> {
-    sequential: SequentialNNModule<B>,
+    sequential: [SequentialNNModule<B>; 2],
+}
+
+impl<B: Backend> Decoder<B, 4> for ResidualBlock<B> {
+    fn forward(&self, arg: DecoderType<B>) -> Result<Tensor<B, 4>> {
+        let tensor = match arg {
+            DecoderType::ResidualBlock(tensor) => tensor,
+            _ => return Err(anyhow!("Invalid decoder type")),
+        };
+
+        let forward_init = self
+            .sequential
+            .first()
+            .map(|seq| seq.forward(tensor))
+            .ok_or(anyhow!(
+                "Expect to compute the tensor for the first sequential nn"
+            ))?;
+
+        let delta_x = self
+            .sequential
+            .last()
+            .map(|seq| seq.forward(forward_init))
+            .ok_or(anyhow!(
+                "Expect to compute the tensor for the second sequential nn"
+            ))?;
+
+        Ok(delta_x)
+    }
 }
 
 #[cfg(test)]
@@ -95,15 +127,31 @@ mod tests {
             &device,
         )));
 
-        let module = SequentialNNModule {
-            relu: Relu::new(),
-            conv: conv_config,
-            batch_norm: None,
+        let residual_block = ResidualBlock {
+            sequential: [
+                SequentialNNModule {
+                    // Relu -> Transform the negative values to zero
+                    relu: Relu::new(),
+                    conv2d: conv_config.clone(),
+                    batch_norm: None,
+                },
+                SequentialNNModule {
+                    relu: Relu::new(),
+                    conv2d: conv_config.clone(),
+                    batch_norm: None,
+                },
+            ],
         };
 
-        let res = module.forward(tensor).to_data();
-        let values: Vec<f32> = res.to_vec().unwrap();
+        let computed_tensor_two = residual_block
+            .forward(DecoderType::ResidualBlock(tensor))
+            .expect("Expect to have compute the residual block tensor")
+            .to_data();
+        let nn_sequential_second_layers: Vec<f32> = computed_tensor_two.to_vec().unwrap();
 
-        assert_eq!(values, [36.5, 36.5, 36.5, 36.5, 35.5, 35.5, 35.5, 35.5]);
+        assert_eq!(
+            nn_sequential_second_layers,
+            [288.5, 288.5, 288.5, 288.5, 287.5, 287.5, 287.5, 287.5]
+        );
     }
 }
