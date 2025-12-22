@@ -2,10 +2,11 @@ use anyhow::Result;
 use burn::prelude::Backend;
 use burn::tensor::{Tensor, TensorKind};
 
+mod feature_fusion_block_2d;
 mod residual_block;
 
 pub enum DecoderType<B: Backend> {
-    MultiresConv,
+    FeatureFusionBlock2D(Tensor<B, 4>, Option<Tensor<B, 4>>),
     ResidualBlock(Tensor<B, 4>),
 }
 

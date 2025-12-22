@@ -4,10 +4,15 @@ use burn::Tensor;
 use burn::nn::{BatchNorm, Relu, modules::conv::Conv2d};
 use burn::prelude::Backend;
 
+/// Sequential neural network module
+///
+/// This implements the _create_block method in python.
+/// for reference please see: depth_pro/network/decoder.py L:191
+#[derive(Debug, Clone)]
 pub struct SequentialNNModule<B: Backend> {
-    relu: Relu,
-    conv2d: Conv2d<B>,
-    batch_norm: Option<BatchNorm<B>>,
+    pub relu: Relu,
+    pub conv2d: Conv2d<B>,
+    pub batch_norm: Option<BatchNorm<B>>,
 }
 
 impl<B: Backend> SequentialNNModule<B> {
@@ -26,8 +31,15 @@ impl<B: Backend> SequentialNNModule<B> {
 ///
 /// Based on the implementation in depth_pro/network/decoder.py L:96
 /// /!\ Note that the shortcut is not implemented as it seems unused.
+#[derive(Debug, Clone)]
 pub struct ResidualBlock<B: Backend> {
     sequential: [SequentialNNModule<B>; 2],
+}
+
+impl<B: Backend> ResidualBlock<B> {
+    pub fn new(sequential: [SequentialNNModule<B>; 2]) -> Self {
+        Self { sequential }
+    }
 }
 
 impl<B: Backend> Decoder<B, 4> for ResidualBlock<B> {
@@ -132,6 +144,7 @@ mod tests {
                 SequentialNNModule {
                     // Relu -> Transform the negative values to zero
                     relu: Relu::new(),
+                    // Conv2d -> extracts spatial features using learned filters (slice over image, detect patterns)
                     conv2d: conv_config.clone(),
                     batch_norm: None,
                 },
