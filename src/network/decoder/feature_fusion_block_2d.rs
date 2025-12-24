@@ -23,7 +23,7 @@ pub struct FeatureFusionBlock2D<B: Backend> {
 }
 
 impl<B: Backend> FeatureFusionBlock2D<B> {
-    fn new(num_features: usize, deconv: bool, batch_norm: bool) -> Self {
+    pub fn new(num_features: usize, deconv: bool, batch_norm: bool) -> Self {
         let device = Default::default();
         let conv_config = Conv2dConfig::new([num_features, num_features], [3, 3])
             .with_stride([1, 1])
@@ -94,7 +94,7 @@ impl<B: Backend> Decoder<B, 4> for FeatureFusionBlock2D<B> {
     fn forward(&self, arg: DecoderType<B>) -> Result<Tensor<B, 4>> {
         let (mut x0, x1) = match arg {
             DecoderType::FeatureFusionBlock2D(x, x1) => (x, x1),
-            _ => return Err(anyhow!("Invalid decoder type")),
+            _ => return Err(anyhow!("Invalid input type")),
         };
 
         if let Some(x1) = x1 {
