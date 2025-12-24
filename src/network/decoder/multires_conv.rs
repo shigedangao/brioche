@@ -3,7 +3,6 @@ use super::{Decoder, DecoderType};
 use crate::network::decoder::DecoderOutput;
 use anyhow::{Result, anyhow};
 use burn::{
-    Tensor,
     nn::{
         PaddingConfig2d,
         conv::{Conv2d, Conv2dConfig},
@@ -25,7 +24,7 @@ impl<B: Backend> MultiResConv<B> {
         let conv0 = dims_encoder.first().and_then(|dim| match dim {
             v if *v == dim_decoder => None,
             _ => {
-                let conv_config = Conv2dConfig::new([*dim, dim_decoder], [3, 3])
+                let conv_config = Conv2dConfig::new([*dim, dim_decoder], [1, 1])
                     .with_stride([1, 1])
                     .with_padding(PaddingConfig2d::Explicit(1, 1))
                     .with_bias(false)
@@ -79,6 +78,9 @@ impl<B: Backend> Decoder<B, 4> for MultiResConv<B> {
             ));
         }
 
+        // Project features of different encoder dims to the same decoder dim.
+        // Fuse features from the lowest resolution (num_levels-1)
+        // to the highest (0).
         let mut features = self
             .convs
             .last()
@@ -95,6 +97,16 @@ impl<B: Backend> Decoder<B, 4> for MultiResConv<B> {
 
         // Make a copy of the low-resolution features
         let low_res_features = features.clone();
+
+        let last_fusion = self
+            .fusions
+            .last()
+            .ok_or(anyhow!("Unable to get the latest fusion"))?;
+
+        let (last_fusion_output, _) =
+            last_fusion.forward(DecoderType::FeatureFusionBlock2D(features.clone(), None))?;
+
+        features = last_fusion_output;
 
         for idx in (0..encodings.len() - 1).rev() {
             let conv = self

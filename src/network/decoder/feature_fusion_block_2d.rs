@@ -1,9 +1,7 @@
-use crate::network::decoder::DecoderOutput;
-
 use super::residual_block::{ResidualBlock, SequentialNNModule};
 use super::{Decoder, DecoderType};
+use crate::network::decoder::DecoderOutput;
 use anyhow::{Result, anyhow};
-use burn::Tensor;
 use burn::nn::{
     PaddingConfig2d, Relu,
     conv::{Conv2d, Conv2dConfig, ConvTranspose2d, ConvTranspose2dConfig},
