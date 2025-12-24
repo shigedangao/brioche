@@ -1,5 +1,6 @@
 use super::feature_fusion_block_2d::FeatureFusionBlock2D;
 use super::{Decoder, DecoderType};
+use crate::network::decoder::DecoderOutput;
 use anyhow::{Result, anyhow};
 use burn::{
     Tensor,
@@ -61,8 +62,10 @@ impl<B: Backend> MultiResConv<B> {
             fusions,
         }
     }
+}
 
-    fn forward(&self, input: DecoderType<B>) -> Result<(Tensor<B, 4>, Tensor<B, 4>)> {
+impl<B: Backend> Decoder<B, 4> for MultiResConv<B> {
+    fn forward(&self, input: DecoderType<B>) -> Result<DecoderOutput<B>> {
         let encodings = match input {
             DecoderType::MultiResConv(arg) => arg,
             _ => return Err(anyhow!("Invalid input type")),
@@ -110,12 +113,14 @@ impl<B: Backend> MultiResConv<B> {
                 .get(idx)
                 .ok_or(anyhow!("Unable to get the fusion block"))?;
 
-            features = fusion.forward(DecoderType::FeatureFusionBlock2D(
+            let (feat, _) = fusion.forward(DecoderType::FeatureFusionBlock2D(
                 features,
                 Some(features_idx),
             ))?;
+
+            features = feat;
         }
 
-        Ok((features, low_res_features))
+        Ok((features, Some(low_res_features)))
     }
 }

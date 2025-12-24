@@ -1,4 +1,4 @@
-use super::{Decoder, DecoderType};
+use super::{Decoder, DecoderOutput, DecoderType};
 use anyhow::{Result, anyhow};
 use burn::Tensor;
 use burn::nn::{BatchNorm, Relu, modules::conv::Conv2d};
@@ -43,7 +43,7 @@ impl<B: Backend> ResidualBlock<B> {
 }
 
 impl<B: Backend> Decoder<B, 4> for ResidualBlock<B> {
-    fn forward(&self, arg: DecoderType<B>) -> Result<Tensor<B, 4>> {
+    fn forward(&self, arg: DecoderType<B>) -> Result<DecoderOutput<B>> {
         let tensor = match arg {
             DecoderType::ResidualBlock(tensor) => tensor,
             _ => return Err(anyhow!("Invalid decoder type")),
@@ -65,7 +65,7 @@ impl<B: Backend> Decoder<B, 4> for ResidualBlock<B> {
                 "Expect to compute the tensor for the second sequential nn"
             ))?;
 
-        Ok(delta_x)
+        Ok((delta_x, None))
     }
 }
 
@@ -159,6 +159,7 @@ mod tests {
         let computed_tensor_two = residual_block
             .forward(DecoderType::ResidualBlock(tensor))
             .expect("Expect to have compute the residual block tensor")
+            .0
             .to_data();
         let nn_sequential_second_layers: Vec<f32> = computed_tensor_two.to_vec().unwrap();
 

@@ -1,3 +1,5 @@
+use crate::network::decoder::DecoderOutput;
+
 use super::residual_block::{ResidualBlock, SequentialNNModule};
 use super::{Decoder, DecoderType};
 use anyhow::{Result, anyhow};
@@ -91,18 +93,18 @@ impl<B: Backend> FeatureFusionBlock2D<B> {
 }
 
 impl<B: Backend> Decoder<B, 4> for FeatureFusionBlock2D<B> {
-    fn forward(&self, arg: DecoderType<B>) -> Result<Tensor<B, 4>> {
+    fn forward(&self, arg: DecoderType<B>) -> Result<DecoderOutput<B>> {
         let (mut x0, x1) = match arg {
             DecoderType::FeatureFusionBlock2D(x, x1) => (x, x1),
             _ => return Err(anyhow!("Invalid input type")),
         };
 
         if let Some(x1) = x1 {
-            let res = self.resnet1.forward(DecoderType::ResidualBlock(x1))?;
+            let (res, _) = self.resnet1.forward(DecoderType::ResidualBlock(x1))?;
             x0 = x0 + res;
         }
 
-        x0 = self.resnet2.forward(DecoderType::ResidualBlock(x0))?;
+        let (mut x0, _) = self.resnet2.forward(DecoderType::ResidualBlock(x0))?;
 
         if let Some(deconv) = &self.deconv {
             x0 = deconv.forward(x0);
@@ -110,6 +112,6 @@ impl<B: Backend> Decoder<B, 4> for FeatureFusionBlock2D<B> {
 
         let out = self.outconv.forward(x0);
 
-        Ok(out)
+        Ok((out, None))
     }
 }
