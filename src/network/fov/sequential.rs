@@ -121,3 +121,33 @@ impl<B: Backend> SequentialFovNetwork<B> {
         output
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use burn::{
+        backend::Wgpu,
+        tensor::{Distribution, Shape},
+    };
+
+    use super::*;
+
+    #[test]
+    fn expect_basic_forward_pass_to_work() {
+        let device = Default::default();
+        let num_features = 256;
+
+        let tensor = Tensor::<Wgpu, 4>::random(
+            Shape::new([1, num_features, 48, 48]),
+            Distribution::Uniform(0., 1.),
+            &device,
+        );
+
+        let fov_head0 = SequentialFovNetwork0::<Wgpu>::new(num_features, &device);
+
+        let fov_head = SequentialFovNetwork::<Wgpu>::new(num_features, Some(fov_head0), &device);
+
+        let output = fov_head.forward(tensor);
+
+        assert_eq!(output.shape(), Shape::new([1, 1, 1, 1]));
+    }
+}
