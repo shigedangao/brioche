@@ -1,6 +1,8 @@
-use super::vit::VitModule;
+use crate::vit::fov::FovVitModel;
+use anyhow::Result;
 use burn::{
     Tensor,
+    module::Module,
     nn::interpolate::{Interpolate2dConfig, InterpolateMode},
     prelude::Backend,
 };
@@ -10,60 +12,90 @@ use sequential::{SequentialFovNetwork, SequentialFovNetwork0};
 mod encoder_seq;
 mod sequential;
 
-/// FovNetwork is used to perform some task on the field of view (i guess ?)
+/// Fov is used to perform some task on the field of view (i guess ?)
 /// The implementation details is based on the fov network of depth-pro fov init method. Please follow the link below
 ///
 /// @link https://github.com/apple/ml-depth-pro/blob/9efe5c1def37a26c5367a71df664b18e1306c708/src/depth_pro/network/fov.py#L14
-#[derive(Debug, Clone)]
-struct FovNetwork<B: Backend> {
+#[derive(Debug, Module)]
+struct Fov<B: Backend> {
     head: SequentialFovNetwork<B>,
     encoder: Option<SequentialFovNetworkEncoder<B>>,
     downsample: Option<SequentialFovNetwork0<B>>,
 }
 
-impl<B: Backend> FovNetwork<B> {
-    pub fn new(num_features: usize, fov_encoder: Option<VitModule<B>>, device: B::Device) -> Self {
-        match fov_encoder {
-            Some(module) => {
-                let embed_dim = module.embeded_dim;
+impl<B: Backend> Fov<B> {
+    /// Create a new FovNetwork instance.
+    /// /!\ Note that we could not pass the fov_encoder directly as the Session does not have the Copy & Clone trait.
+    ///     As a result, it's not possible to pass the fov_encoder as an Option
+    ///
+    /// # Arguments
+    ///
+    /// * `num_features` - The number of features.
+    /// * `with_fov_encoder` - Whether to use the fov encoder.
+    /// * `device` - The device to use.
+    ///
+    /// # Returns
+    ///
+    /// A new FovNetwork instance.
+    pub fn new(
+        num_features: usize,
+        with_fov_encoder: bool,
+        embed_dim: usize,
+        device: &B::Device,
+    ) -> Self {
+        let fov_head0 = SequentialFovNetwork0::new(num_features, device);
 
-                let encoder =
-                    SequentialFovNetworkEncoder::new(module, embed_dim, num_features, &device);
-
-                let downsample = SequentialFovNetwork0::new(num_features, &device);
-                let head = SequentialFovNetwork::new(num_features, None, &device);
-
-                Self {
-                    head,
-                    encoder: Some(encoder),
-                    downsample: Some(downsample),
-                }
-            }
-            None => {
-                let fov_head0 = SequentialFovNetwork0::new(num_features, &device);
-                let head = SequentialFovNetwork::new(num_features, Some(fov_head0), &device);
-
-                Self {
-                    head,
-                    encoder: None,
-                    downsample: None,
-                }
-            }
+        match with_fov_encoder {
+            true => Self {
+                head: SequentialFovNetwork::new(num_features, None, device),
+                encoder: Some(SequentialFovNetworkEncoder::new(
+                    embed_dim,
+                    num_features,
+                    device,
+                )),
+                downsample: Some(fov_head0),
+            },
+            false => Self {
+                head: SequentialFovNetwork::new(num_features, Some(fov_head0), device),
+                encoder: None,
+                downsample: None,
+            },
         }
     }
 
-    fn forward(&self, x: Tensor<B, 4>, lowres_feature: Tensor<B, 4>) -> Tensor<B, 4> {
-        match self.encoder {
-            Some(ref encoder) => {
+    /// Forward compute the output of the network.
+    ///
+    /// # Arguments
+    /// * `x` - The input tensor.
+    /// * `lowres_feature` - The low resolution feature tensor.
+    /// * `device` - The device to use.
+    /// * `fov_encoder` - The fov encoder.
+    ///
+    /// # Returns
+    /// The output tensor.
+    pub fn forward(
+        &mut self,
+        x: Tensor<B, 4>,
+        lowres_feature: Tensor<B, 4>,
+        device: &B::Device,
+        fov_encoder: Option<FovVitModel>,
+    ) -> Result<Tensor<B, 4>> {
+        let out = match self.encoder {
+            Some(ref mut encoder) => {
                 let interpolate = Interpolate2dConfig::new()
                     .with_scale_factor(Some([0.25, 0.25]))
+                    .with_output_size(None)
                     .with_mode(InterpolateMode::Linear)
                     .init();
 
-                let encoder_out = interpolate.forward(x);
+                let interpolated_out = interpolate.forward(x);
+
+                // Encode the interpolated features
+                let mut fov_encoder = fov_encoder.expect("Expect fov encoder to be present");
+                let encoder_out = encoder.forward(interpolated_out, &device, &mut fov_encoder)?;
 
                 // For [:, 1:] slicing - get the shape first
-                let [batch, seq_len, hidden, _] = encoder_out.dims();
+                let [batch, seq_len, hidden] = encoder_out.dims();
 
                 // Slice to remove first token (dimension 1, from index 1 onwards)
                 let sliced_out = encoder_out.slice([
@@ -73,18 +105,134 @@ impl<B: Backend> FovNetwork<B> {
                 ]);
 
                 let permuted = sliced_out.swap_dims(1, 2);
-                let downsampled_x = match self.downsample {
+
+                let processed_x = match self.downsample {
                     Some(ref downsample) => {
                         let lowres_output = downsample.forward(lowres_feature);
+                        let x_tensor4 = permuted.reshape(lowres_output.shape());
 
-                        permuted + lowres_output
+                        x_tensor4 + lowres_output
                     }
-                    None => permuted + lowres_feature,
+                    None => lowres_feature,
                 };
 
-                self.head.forward(downsampled_x)
+                self.head.forward(processed_x)
             }
             None => self.head.forward(lowres_feature),
+        };
+
+        Ok(out)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use burn::record::{FullPrecisionSettings, Recorder};
+    use burn::{
+        backend::NdArray,
+        tensor::{Distribution, Shape, TensorData},
+    };
+    use burn_import::pytorch::PyTorchFileRecorder;
+    use ndarray::Array4;
+    use std::path::PathBuf;
+
+    fn create_fov_model_with_weight() -> Fov<NdArray> {
+        let device = Default::default();
+
+        let record = PyTorchFileRecorder::<FullPrecisionSettings>::default()
+            .load(
+                "/Users/marcintha/workspace/brioche/butter/fov_only.pt".into(),
+                &device,
+            )
+            .unwrap();
+
+        let fov = Fov::<NdArray>::new(256, true, 1024, &device).load_record(record);
+
+        fov
+    }
+
+    #[test]
+    fn expect_fov_test_to_output_something() {
+        let device = Default::default();
+
+        let fov_encoder = FovVitModel::new::<NdArray>(
+            PathBuf::from("/Users/marcintha/workspace/pypy/depthpro_vit_fov.onnx"),
+            4,
+        );
+        assert!(fov_encoder.is_ok());
+
+        let fov_encoder = fov_encoder.unwrap();
+
+        let mut fov = Fov::<NdArray>::new(256, true, 1024, &device);
+
+        let x: Tensor<NdArray, 4> = Tensor::random(
+            Shape::new([1, 3, 1536, 1536]),
+            Distribution::Uniform(-1., 1.),
+            &device,
+        );
+
+        let lowres_feature: Tensor<NdArray, 4> = Tensor::random(
+            Shape::new([1, 256, 48, 48]),
+            Distribution::Uniform(-6.5, 7.1),
+            &device,
+        );
+
+        let res = fov.forward(x, lowres_feature, &device, Some(fov_encoder));
+        assert!(res.is_ok());
+    }
+
+    #[test]
+    fn expect_to_run_with_deterministic_tensors() {
+        let device = Default::default();
+
+        // Create x
+        let x_matrix: Array4<f32> =
+            ndarray_npy::read_npy("testdata/tensors_data/fov/x.npy").unwrap();
+        let (x_data, _) = x_matrix.into_raw_vec_and_offset();
+        let x: Tensor<NdArray, 4> =
+            Tensor::from_data(TensorData::new(x_data, [1, 3, 1536, 1536]), &device);
+
+        // Create low_res
+        let low_res: Array4<f32> =
+            ndarray_npy::read_npy("testdata/tensors_data/fov/lowres_feature.npy").unwrap();
+        let (low_res_data, _) = low_res.into_raw_vec_and_offset();
+        let low_res: Tensor<NdArray, 4> =
+            Tensor::from_data(TensorData::new(low_res_data, [1, 256, 48, 48]), &device);
+
+        let fov_encoder = FovVitModel::new::<NdArray>(
+            PathBuf::from("/Users/marcintha/workspace/pypy/depthpro_vit_fov.onnx"),
+            4,
+        )
+        .unwrap();
+
+        let mut fov = create_fov_model_with_weight();
+        
+        // Debug: Print convolution weights to verify they loaded correctly
+        println!("=== CONVOLUTION WEIGHTS ===");
+        if let Some(ref downsample) = fov.downsample {
+            let weight_tensor = downsample.conv.weight.val();
+            println!("Downsample conv weight mean: {:?}", weight_tensor.mean());
         }
+        let weight_tensor_64 = fov.head.conv64.weight.val();
+        let weight_tensor_32 = fov.head.conv32.weight.val();
+        let weight_tensor_16 = fov.head.conv16.weight.val();
+        println!("Head conv64 weight mean: {:?}", weight_tensor_64.mean());
+        println!("Head conv32 weight mean: {:?}", weight_tensor_32.mean());
+        println!("Head conv16 weight mean: {:?}", weight_tensor_16.mean());
+        
+        // Debug: Print linear layer weights
+        if let Some(ref encoder) = fov.encoder {
+            let linear_weight = encoder.linear.weight.val();
+            println!("Encoder linear weight mean: {:?}", linear_weight.mean());
+        }
+
+        let res = fov.forward(x, low_res, &device, Some(fov_encoder));
+        assert!(res.is_ok());
+
+        // @TODO test value, so far quite far i don't really know why
+        let res = res.unwrap();
+        println!("Final output: {}", res);
+        println!("Final output mean: {:?}", res.mean());
     }
 }

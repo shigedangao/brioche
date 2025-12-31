@@ -1,5 +1,6 @@
 use burn::{
     Tensor,
+    module::Module,
     nn::{
         PaddingConfig2d, Relu,
         conv::{Conv2d, Conv2dConfig},
@@ -12,7 +13,7 @@ use burn::{
 /// This follows the implementation of depth-pro's fov.py. Reference can be found at the link below
 ///
 /// @link https://github.com/apple/ml-depth-pro/blob/9efe5c1def37a26c5367a71df664b18e1306c708/src/depth_pro/network/fov.py#L30.
-#[derive(Debug, Clone)]
+#[derive(Debug, Module)]
 pub struct SequentialFovNetwork0<B: Backend> {
     pub conv: Conv2d<B>,
     pub relu: Relu,
@@ -23,7 +24,7 @@ pub struct SequentialFovNetwork0<B: Backend> {
 /// This follows the implementation of depth-pro's fov.py. Reference can be found at the link below
 ///
 /// @link https://github.com/apple/ml-depth-pro/blob/9efe5c1def37a26c5367a71df664b18e1306c708/src/depth_pro/network/fov.py#L36.
-#[derive(Debug, Clone)]
+#[derive(Debug, Module)]
 pub struct SequentialFovNetwork<B: Backend> {
     pub fov_head0: Option<SequentialFovNetwork0<B>>,
     pub conv64: Conv2d<B>,
@@ -36,13 +37,10 @@ pub struct SequentialFovNetwork<B: Backend> {
 impl<B: Backend> SequentialFovNetwork0<B> {
     pub fn new(num_features: usize, device: &B::Device) -> Self {
         Self {
-            conv: Conv2dConfig::new(
-                [num_features, (num_features as f64 / 2.).floor() as usize],
-                [3, 3],
-            )
-            .with_stride([2, 2])
-            .with_padding(PaddingConfig2d::Explicit(1, 1))
-            .init::<B>(&device),
+            conv: Conv2dConfig::new([num_features, num_features / 2], [3, 3])
+                .with_stride([2, 2])
+                .with_padding(PaddingConfig2d::Explicit(1, 1))
+                .init::<B>(&device),
             relu: Relu::new(),
         }
     }
@@ -85,8 +83,8 @@ impl<B: Backend> SequentialFovNetwork<B> {
                 .init::<B>(&device),
             relu32: Relu::new(),
             conv16: Conv2dConfig::new([num_features / 8, 1], [6, 6])
-                .with_stride([2, 2])
-                .with_padding(PaddingConfig2d::Valid)
+                .with_stride([1, 1])
+                .with_padding(PaddingConfig2d::Explicit(0, 0))
                 .init::<B>(&device),
         }
     }
@@ -143,9 +141,7 @@ mod tests {
         );
 
         let fov_head0 = SequentialFovNetwork0::<Wgpu>::new(num_features, &device);
-
         let fov_head = SequentialFovNetwork::<Wgpu>::new(num_features, Some(fov_head0), &device);
-
         let output = fov_head.forward(tensor);
 
         assert_eq!(output.shape(), Shape::new([1, 1, 1, 1]));

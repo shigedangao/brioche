@@ -1,9 +1,12 @@
-use crate::network::vit::VitModule;
+use crate::vit::fov::FovVitModel;
+use anyhow::{Result, anyhow};
 use burn::{
     Tensor,
+    module::Module,
     nn::{Linear, LinearConfig},
     prelude::Backend,
 };
+use ndarray::Array4;
 
 /// Sequential Foveal Vision Transformer (FOV) network encoder.
 ///
@@ -11,29 +14,34 @@ use burn::{
 /// @link https://github.com/apple/ml-depth-pro/blob/9efe5c1def37a26c5367a71df664b18e1306c708/src/depth_pro/network/fov.py#L48
 ///
 /// /!\ Note that this is tightly linked to the fov_encoder module that needs to be converted with onnx.
-#[derive(Debug, Clone)]
+#[derive(Debug, Module)]
 pub struct SequentialFovNetworkEncoder<B: Backend> {
-    fov_encoder: VitModule<B>,
-    linear: Linear<B>,
+    pub linear: Linear<B>,
 }
 
 impl<B: Backend> SequentialFovNetworkEncoder<B> {
-    pub fn new(
-        fov_encoder: VitModule<B>,
-        embed_dim: usize,
-        num_features: usize,
-        device: &B::Device,
-    ) -> Self {
+    pub fn new(embed_dim: usize, num_features: usize, device: &B::Device) -> Self {
         Self {
-            fov_encoder,
-            linear: LinearConfig::new(embed_dim, num_features / 4).init(device),
+            linear: LinearConfig::new(embed_dim, num_features / 2).init(device),
         }
     }
 
-    fn forward<const S: usize>(&self, input: Tensor<B, S>) -> Tensor<B, S> {
-        let encoded = self.fov_encoder.forward(input);
+    pub fn forward(
+        &mut self,
+        input: Tensor<B, 4>,
+        device: &B::Device,
+        encoder: &mut FovVitModel,
+    ) -> Result<Tensor<B, 3>> {
+        let array: Vec<f32> = input
+            .to_data()
+            .to_vec()
+            .map_err(|err| anyhow!("Unable to convert the tensor to a vector due to {:?}", err))?;
+
+        let tensor_ndarray = Array4::from_shape_vec((1, 3, 384, 384), array)?;
+        let encoded = encoder.forward(tensor_ndarray, device)?;
+
         let output = self.linear.forward(encoded);
 
-        output
+        Ok(output)
     }
 }
