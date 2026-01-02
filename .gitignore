@@ -1,1 +1,4 @@
 /target
+butter/.venv
+butter/*.pt
+.DS_Store
