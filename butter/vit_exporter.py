@@ -1,9 +1,20 @@
+import argparse
+
 import onnxruntime as ort
 import timm
 import torch
 import torch.nn as nn
 from timm.layers.pos_embed import resample_abs_pos_embed
+from timm.models.tiny_vit import PatchMerging
+from torch._functorch.config import patch
 from torch.export import Dim
+
+parser = argparse.ArgumentParser(description="Export ViT model to ONNX")
+parser.add_argument("--fov", type=bool, required=False)
+parser.add_argument("--patch", type=bool, required=False)
+parser.add_argument("--image", type=bool, required=False)
+
+args = parser.parse_args()
 
 batch = Dim("batch", min=1)  # or min=1, max=64 if you want guards
 height = Dim("height", min=384)  # you can set min/max; keep 384 if fixed
@@ -28,17 +39,59 @@ class DummyDepthProModel(nn.Module):
     def __init__(
         self,
         fov_encoder: nn.Module,
+        patch_encoder: nn.Module,
+        image_encoder: nn.Module,
     ):
         super().__init__()
 
         self.fov = FovEncoder(fov_encoder)
+        self.patch_encoder = PatchEncoder(patch_encoder, block0=5, block1=11)
+        self.image_encoder = ImageEncoder(image_encoder)
 
 
+# Dummy model
 class FovEncoder(nn.Module):
     def __init__(self, model: nn.Module):
         super().__init__()
 
         self.encoder = model
+
+
+# Dummy model
+class ImageEncoder(nn.Module):
+    def __init__(self, model: nn.Module):
+        super().__init__()
+
+        self.encoder = model
+
+
+# Dummy model
+class PatchEncoder(nn.Module):
+    def __init__(self, model: nn.Module, block0: int, block1: int):
+        super().__init__()
+
+        self.encoder = model
+        self.block0 = block0
+        self.block1 = block1
+        self.hook0: torch.Tensor | None = None
+        self.hook1: torch.Tensor | None = None
+
+    def forward(self, x):
+        # Add the hooks to the model when running the forward pass method to the encoder.
+        # /!\ Forward hooks are not supported by burn. So we'll add a forward hook and then returns the output of the forward hooks to the "output_names" of the encoder along with output in the "dynamic_axes".
+        self.encoder.blocks[self.block0].register_forward_hook(self.hook_fn0)
+        self.encoder.blocks[self.block1].register_forward_hook(self.hook_fn1)
+
+        # make a forward passthrough of the encoder
+        final_output = self.encoder(x)
+
+        return tuple([final_output, self.hook0, self.hook1])
+
+    def hook_fn0(self, module, input, output):
+        self.hook0 = output
+
+    def hook_fn1(self, module, input, output):
+        self.hook1 = output
 
 
 # --- Provided by depth-pro (yours, unchanged) ---
@@ -110,10 +163,10 @@ def create_minimal_vit_to_onnx() -> nn.Module:
     )
 
     # kill classifier head just in case
-    if hasattr(vit, "reset_classifier"):
-        vit.reset_classifier(0)
-    elif hasattr(vit, "head"):
-        vit.head = nn.Identity()
+    # if hasattr(vit, "reset_classifier"):
+    #    vit.reset_classifier(0)
+    # elif hasattr(vit, "head"):
+    #    vit.head = nn.Identity()
 
     vit_model = nn.Module()
     vit_model.hooks = config["encoder_feature_layer_ids"]
@@ -135,7 +188,9 @@ def create_minimal_vit_to_onnx() -> nn.Module:
 base_model = create_minimal_vit_to_onnx()
 
 # Create a dummy DepthPro model wrapping the ViT encoder for ONNX export
-model = DummyDepthProModel(fov_encoder=base_model).to("cpu")
+model = DummyDepthProModel(
+    fov_encoder=base_model, patch_encoder=base_model, image_encoder=base_model
+).to("cpu")
 
 # Import the weight for the ViT encoder into the DepthPro model (.pt file)
 state_dict = torch.load(
@@ -149,13 +204,29 @@ model.load_state_dict(state_dict, strict=False)
 # choose a dummy input tensor but which match the ViT encoder (fov, patch_encoder, image_encoder) that will be export to onnx
 dummy = torch.randn(1, 3, 384, 384)
 
+# Either fov or patch_encoder or image_encoder
+
+export_model = model.fov.encoder
+file_name = "depthpro_vit_fov.onnx"
+output_names = ["tokens"]
+
+if args.patch:
+    export_model = model.patch_encoder
+    file_name = "depthpro_vit_patch.onnx"
+    output_names = ["final_output", "hooks0", "hooks1"]
+    # override the tensor shape to match the patch encoder input shape
+    dummy = torch.randn(35, 3, 384, 384)
+elif args.image:
+    export_model = model.image_encoder.encoder
+    file_name = "depthpro_vit_image.onnx"
+
 torch.onnx.export(
-    model.fov.encoder,
+    export_model,
     dummy,
-    "depthpro_vit_fov.onnx",
+    file_name,
     opset_version=21,
     input_names=["x"],
-    output_names=["tokens"],
+    output_names=output_names,
     dynamo=True,
     dynamic_shapes={"x": {0: Dim("batch", min=1)}},
 )

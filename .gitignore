@@ -1,4 +1,7 @@
 /target
 butter/.venv
 butter/*.pt
+_.DS_Store
+testdata/.DS_Store
 .DS_Store
+*.onnx*

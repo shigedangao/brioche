@@ -35,6 +35,11 @@ pub struct SequentialFovNetwork<B: Backend> {
 }
 
 impl<B: Backend> SequentialFovNetwork0<B> {
+    /// Create a new SequentialFovNetwork0 module.
+    ///
+    /// # Arguments
+    /// * `num_features` - The number of features in the input tensor.
+    /// * `device` - The device on which the network will be created.
     pub fn new(num_features: usize, device: &B::Device) -> Self {
         Self {
             conv: Conv2dConfig::new([num_features, num_features / 2], [3, 3])
@@ -45,6 +50,10 @@ impl<B: Backend> SequentialFovNetwork0<B> {
         }
     }
 
+    /// Forward pass of the SequentialFovNetwork0 module.
+    ///
+    /// # Arguments
+    /// * `input` - The input tensor.
     pub fn forward(&self, input: Tensor<B, 4>) -> Tensor<B, 4> {
         // 128 x 24 x 24
         let output = self.conv.forward(input);
