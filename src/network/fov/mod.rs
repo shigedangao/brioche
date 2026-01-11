@@ -1,4 +1,4 @@
-use crate::vit::fov::FovVitModel;
+use crate::vit::common::CommonVitModel;
 use anyhow::Result;
 use burn::{
     Tensor,
@@ -78,7 +78,7 @@ impl<B: Backend> Fov<B> {
         x: Tensor<B, 4>,
         lowres_feature: Tensor<B, 4>,
         device: &B::Device,
-        fov_encoder: Option<FovVitModel>,
+        fov_encoder: Option<CommonVitModel>,
     ) -> Result<Tensor<B, 4>> {
         let out = match self.encoder {
             Some(ref mut encoder) => {
@@ -130,14 +130,14 @@ mod tests {
     use super::*;
     use burn::record::{FullPrecisionSettings, Recorder};
     use burn::{
-        backend::NdArray,
+        backend::Metal,
         tensor::{Distribution, Shape, TensorData},
     };
     use burn_import::pytorch::PyTorchFileRecorder;
     use ndarray::Array4;
     use std::path::PathBuf;
 
-    fn create_fov_model_with_weight() -> Fov<NdArray> {
+    fn create_fov_model_with_weight() -> Fov<Metal> {
         let device = Default::default();
 
         let record = PyTorchFileRecorder::<FullPrecisionSettings>::default()
@@ -147,7 +147,7 @@ mod tests {
             )
             .unwrap();
 
-        let fov = Fov::<NdArray>::new(256, true, 1024, &device).load_record(record);
+        let fov = Fov::<Metal>::new(256, true, 1024, &device).load_record(record);
 
         fov
     }
@@ -156,23 +156,23 @@ mod tests {
     fn expect_fov_test_to_output_something() {
         let device = Default::default();
 
-        let fov_encoder = FovVitModel::new::<NdArray>(
-            PathBuf::from("/Users/marcintha/workspace/pypy/depthpro_vit_fov.onnx"),
+        let fov_encoder = CommonVitModel::new(
+            PathBuf::from("/Users/marcintha/workspace/brioche/butter/depthpro_vit_fov.onnx"),
             4,
         );
         assert!(fov_encoder.is_ok());
 
         let fov_encoder = fov_encoder.unwrap();
 
-        let mut fov = Fov::<NdArray>::new(256, true, 1024, &device);
+        let mut fov = Fov::<Metal>::new(256, true, 1024, &device);
 
-        let x: Tensor<NdArray, 4> = Tensor::random(
+        let x: Tensor<Metal, 4> = Tensor::random(
             Shape::new([1, 3, 1536, 1536]),
             Distribution::Uniform(-1., 1.),
             &device,
         );
 
-        let lowres_feature: Tensor<NdArray, 4> = Tensor::random(
+        let lowres_feature: Tensor<Metal, 4> = Tensor::random(
             Shape::new([1, 256, 48, 48]),
             Distribution::Uniform(-6.5, 7.1),
             &device,
@@ -190,42 +190,23 @@ mod tests {
         let x_matrix: Array4<f32> =
             ndarray_npy::read_npy("testdata/tensors_data/fov/x.npy").unwrap();
         let (x_data, _) = x_matrix.into_raw_vec_and_offset();
-        let x: Tensor<NdArray, 4> =
+        let x: Tensor<Metal, 4> =
             Tensor::from_data(TensorData::new(x_data, [1, 3, 1536, 1536]), &device);
 
         // Create low_res
         let low_res: Array4<f32> =
             ndarray_npy::read_npy("testdata/tensors_data/fov/lowres_feature.npy").unwrap();
         let (low_res_data, _) = low_res.into_raw_vec_and_offset();
-        let low_res: Tensor<NdArray, 4> =
+        let low_res: Tensor<Metal, 4> =
             Tensor::from_data(TensorData::new(low_res_data, [1, 256, 48, 48]), &device);
 
-        let fov_encoder = FovVitModel::new::<NdArray>(
-            PathBuf::from("/Users/marcintha/workspace/pypy/depthpro_vit_fov.onnx"),
+        let fov_encoder = CommonVitModel::new(
+            PathBuf::from("/Users/marcintha/workspace/brioche/butter/depthpro_vit_fov.onnx"),
             4,
         )
         .unwrap();
 
         let mut fov = create_fov_model_with_weight();
-        
-        // Debug: Print convolution weights to verify they loaded correctly
-        println!("=== CONVOLUTION WEIGHTS ===");
-        if let Some(ref downsample) = fov.downsample {
-            let weight_tensor = downsample.conv.weight.val();
-            println!("Downsample conv weight mean: {:?}", weight_tensor.mean());
-        }
-        let weight_tensor_64 = fov.head.conv64.weight.val();
-        let weight_tensor_32 = fov.head.conv32.weight.val();
-        let weight_tensor_16 = fov.head.conv16.weight.val();
-        println!("Head conv64 weight mean: {:?}", weight_tensor_64.mean());
-        println!("Head conv32 weight mean: {:?}", weight_tensor_32.mean());
-        println!("Head conv16 weight mean: {:?}", weight_tensor_16.mean());
-        
-        // Debug: Print linear layer weights
-        if let Some(ref encoder) = fov.encoder {
-            let linear_weight = encoder.linear.weight.val();
-            println!("Encoder linear weight mean: {:?}", linear_weight.mean());
-        }
 
         let res = fov.forward(x, low_res, &device, Some(fov_encoder));
         assert!(res.is_ok());

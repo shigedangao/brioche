@@ -1,12 +1,11 @@
-use crate::vit::fov::FovVitModel;
-use anyhow::{Result, anyhow};
+use crate::vit::{VitOps, common::CommonVitModel};
+use anyhow::Result;
 use burn::{
     Tensor,
     module::Module,
     nn::{Linear, LinearConfig},
     prelude::Backend,
 };
-use ndarray::Array4;
 
 /// Sequential Foveal Vision Transformer (FOV) network encoder.
 ///
@@ -20,27 +19,33 @@ pub struct SequentialFovNetworkEncoder<B: Backend> {
 }
 
 impl<B: Backend> SequentialFovNetworkEncoder<B> {
+    /// Create a new SequentialFovNetworkEncoder module.
+    ///
+    /// # Arguments
+    /// * `embed_dim` - The input dimension.
+    /// * `num_features` - The output dimension.
+    /// * `device` - The device to use.
     pub fn new(embed_dim: usize, num_features: usize, device: &B::Device) -> Self {
         Self {
             linear: LinearConfig::new(embed_dim, num_features / 2).init(device),
         }
     }
 
+    /// Forward pass of the SequentialFovNetworkEncoder module.
+    ///
+    /// # Arguments
+    /// * `input` - The input tensor.
+    /// * `device` - The device to use.
+    /// * `encoder` - The CommonVitModel encoder.
     pub fn forward(
         &mut self,
         input: Tensor<B, 4>,
         device: &B::Device,
-        encoder: &mut FovVitModel,
+        encoder: &mut CommonVitModel,
     ) -> Result<Tensor<B, 3>> {
-        let array: Vec<f32> = input
-            .to_data()
-            .to_vec()
-            .map_err(|err| anyhow!("Unable to convert the tensor to a vector due to {:?}", err))?;
+        let encoded = encoder.forward(input, device)?;
 
-        let tensor_ndarray = Array4::from_shape_vec((1, 3, 384, 384), array)?;
-        let encoded = encoder.forward(tensor_ndarray, device)?;
-
-        let output = self.linear.forward(encoded);
+        let output = self.linear.forward(encoded.tensor);
 
         Ok(output)
     }
