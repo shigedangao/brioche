@@ -17,10 +17,17 @@ mod sequential;
 ///
 /// @link https://github.com/apple/ml-depth-pro/blob/9efe5c1def37a26c5367a71df664b18e1306c708/src/depth_pro/network/fov.py#L14
 #[derive(Debug, Module)]
-struct Fov<B: Backend> {
+pub struct Fov<B: Backend> {
     head: SequentialFovNetwork<B>,
     encoder: Option<SequentialFovNetworkEncoder<B>>,
     downsample: Option<SequentialFovNetwork0<B>>,
+}
+
+#[derive(Debug, Clone)]
+pub struct FovConfig {
+    num_features: usize,
+    with_fov_encoder: bool,
+    embed_dim: usize,
 }
 
 impl<B: Backend> Fov<B> {
@@ -37,12 +44,13 @@ impl<B: Backend> Fov<B> {
     /// # Returns
     ///
     /// A new FovNetwork instance.
-    pub fn new(
-        num_features: usize,
-        with_fov_encoder: bool,
-        embed_dim: usize,
-        device: &B::Device,
-    ) -> Self {
+    pub fn new(config: FovConfig, device: &B::Device) -> Self {
+        let FovConfig {
+            num_features,
+            with_fov_encoder,
+            embed_dim,
+        } = config;
+
         let fov_head0 = SequentialFovNetwork0::new(num_features, device);
 
         match with_fov_encoder {
@@ -77,8 +85,8 @@ impl<B: Backend> Fov<B> {
         &mut self,
         x: Tensor<B, 4>,
         lowres_feature: Tensor<B, 4>,
+        fov_encoder: CommonVitModel,
         device: &B::Device,
-        fov_encoder: Option<CommonVitModel>,
     ) -> Result<Tensor<B, 4>> {
         let out = match self.encoder {
             Some(ref mut encoder) => {
@@ -91,7 +99,7 @@ impl<B: Backend> Fov<B> {
                 let interpolated_out = interpolate.forward(x);
 
                 // Encode the interpolated features
-                let mut fov_encoder = fov_encoder.expect("Expect fov encoder to be present");
+                let mut fov_encoder = fov_encoder;
                 let encoder_out = encoder.forward(interpolated_out, &device, &mut fov_encoder)?;
 
                 // For [:, 1:] slicing - get the shape first
@@ -147,7 +155,15 @@ mod tests {
             )
             .unwrap();
 
-        let fov = Fov::<Metal>::new(256, true, 1024, &device).load_record(record);
+        let fov = Fov::<Metal>::new(
+            FovConfig {
+                num_features: 256,
+                with_fov_encoder: true,
+                embed_dim: 1024,
+            },
+            &device,
+        )
+        .load_record(record);
 
         fov
     }
@@ -164,7 +180,14 @@ mod tests {
 
         let fov_encoder = fov_encoder.unwrap();
 
-        let mut fov = Fov::<Metal>::new(256, true, 1024, &device);
+        let mut fov = Fov::<Metal>::new(
+            FovConfig {
+                num_features: 256,
+                with_fov_encoder: true,
+                embed_dim: 1024,
+            },
+            &device,
+        );
 
         let x: Tensor<Metal, 4> = Tensor::random(
             Shape::new([1, 3, 1536, 1536]),
@@ -178,7 +201,7 @@ mod tests {
             &device,
         );
 
-        let res = fov.forward(x, lowres_feature, &device, Some(fov_encoder));
+        let res = fov.forward(x, lowres_feature, fov_encoder, &device);
         assert!(res.is_ok());
     }
 
@@ -208,7 +231,7 @@ mod tests {
 
         let mut fov = create_fov_model_with_weight();
 
-        let res = fov.forward(x, low_res, &device, Some(fov_encoder));
+        let res = fov.forward(x, low_res, fov_encoder, &device);
         assert!(res.is_ok());
 
         // @TODO test value, so far quite far i don't really know why

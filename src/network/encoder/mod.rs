@@ -50,6 +50,15 @@ pub struct EncoderOutput<B: Backend> {
     pub x_global_features: Tensor<B, 4>,
 }
 
+#[derive(Debug, Default)]
+pub struct EncoderConfig {
+    dims_encoder: Vec<usize>,
+    patch_encoder_embed_dim: usize,
+    image_encoder_embed_dim: usize,
+    decoder_features: usize,
+    out_size: usize,
+}
+
 impl<B: Backend> Encoder<B> {
     /// Create a new encoder.
     ///
@@ -60,14 +69,15 @@ impl<B: Backend> Encoder<B> {
     /// * `decoder_features` - The decoder features.
     /// * `device` - The device to use.
     /// * `out_size` - The output size.
-    fn new(
-        dims_encoder: Vec<usize>,
-        patch_encoder_embed_dim: usize,
-        image_encoder_embed_dim: usize,
-        decoder_features: usize,
-        device: &B::Device,
-        out_size: usize,
-    ) -> Self {
+    pub fn new(config: EncoderConfig, device: &B::Device) -> Self {
+        let EncoderConfig {
+            dims_encoder,
+            patch_encoder_embed_dim,
+            image_encoder_embed_dim,
+            decoder_features,
+            out_size,
+        } = config;
+
         let upsample_latent0 = ProjectionSeq::new(
             patch_encoder_embed_dim,
             dims_encoder.first().copied(),
@@ -291,7 +301,7 @@ impl<B: Backend> Encoder<B> {
     /// * `batch_size` - The batch size.
     /// * `padding` - The padding.
     /// * `device` - The device.
-    fn forward(
+    pub fn forward(
         &self,
         input: Tensor<B, 4>,
         mut patch_encoder: PatchVitModel,
@@ -423,16 +433,15 @@ mod tests {
             )
             .unwrap();
 
-        // For testing we use ndarray. But it'd be better to use Wgpu or else.
-        let encoder = Encoder::<Metal>::new(
-            vec![256, 512, 1024, 1024],
-            1024,
-            1024,
-            256,
-            &device,
-            384 / 16,
-        )
-        .load_record(record);
+        let encoder_config = EncoderConfig {
+            dims_encoder: vec![256, 512, 1024, 1024],
+            patch_encoder_embed_dim: 1024,
+            image_encoder_embed_dim: 1024,
+            decoder_features: 256,
+            out_size: 384 / 16,
+        };
+
+        let encoder = Encoder::<Metal>::new(encoder_config, &device).load_record(record);
 
         encoder
     }

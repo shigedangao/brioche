@@ -2,6 +2,7 @@ use super::feature_fusion_block_2d::FeatureFusionBlock2D;
 use super::{Decoder, DecoderType};
 use crate::network::decoder::DecoderOutput;
 use anyhow::{Result, anyhow};
+use burn::module::Module;
 use burn::{
     nn::{
         PaddingConfig2d,
@@ -10,16 +11,25 @@ use burn::{
     prelude::Backend,
 };
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Module)]
 pub struct MultiResConv<B: Backend> {
     dims_encoder: Vec<usize>,
     convs: Vec<Conv2d<B>>,
     fusions: Vec<FeatureFusionBlock2D<B>>,
 }
 
+#[derive(Debug, Default)]
+pub struct MultiResDecoderConfig {
+    dims_encoder: Vec<usize>,
+    dim_decoder: usize,
+}
+
 impl<B: Backend> MultiResConv<B> {
-    fn new(dims_encoder: Vec<usize>, dim_decoder: usize) -> Self {
-        let device = Default::default();
+    pub fn new(config: MultiResDecoderConfig, device: &B::Device) -> Self {
+        let MultiResDecoderConfig {
+            dims_encoder,
+            dim_decoder,
+        } = config;
 
         let conv0 = dims_encoder.first().and_then(|dim| match dim {
             v if *v == dim_decoder => None,
@@ -52,7 +62,7 @@ impl<B: Backend> MultiResConv<B> {
         let fusions: Vec<FeatureFusionBlock2D<B>> = dims_encoder
             .iter()
             .enumerate()
-            .map(|(idx, _)| FeatureFusionBlock2D::new(dim_decoder, idx != 0, false))
+            .map(|(idx, _)| FeatureFusionBlock2D::new(dim_decoder, idx != 0, false, device))
             .collect();
 
         Self {

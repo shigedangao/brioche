@@ -1,6 +1,7 @@
 use super::{Decoder, DecoderOutput, DecoderType};
 use anyhow::{Result, anyhow};
 use burn::Tensor;
+use burn::module::Module;
 use burn::nn::{BatchNorm, Relu, modules::conv::Conv2d};
 use burn::prelude::Backend;
 
@@ -8,7 +9,7 @@ use burn::prelude::Backend;
 ///
 /// This implements the _create_block method in python.
 /// for reference please see: depth_pro/network/decoder.py L:191
-#[derive(Debug, Clone)]
+#[derive(Debug, Module)]
 pub struct SequentialNNModule<B: Backend> {
     pub relu: Relu,
     pub conv2d: Conv2d<B>,
@@ -31,7 +32,7 @@ impl<B: Backend> SequentialNNModule<B> {
 ///
 /// Based on the implementation in depth_pro/network/decoder.py L:96
 /// /!\ Note that the shortcut is not implemented as it seems unused.
-#[derive(Debug, Clone)]
+#[derive(Debug, Module)]
 pub struct ResidualBlock<B: Backend> {
     sequential: [SequentialNNModule<B>; 2],
 }

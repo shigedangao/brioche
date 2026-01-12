@@ -3,7 +3,7 @@ use burn::prelude::Backend;
 use burn::tensor::Tensor;
 
 mod feature_fusion_block_2d;
-mod multires_conv;
+pub(crate) mod multires_conv;
 mod residual_block;
 
 pub enum DecoderType<B: Backend> {
