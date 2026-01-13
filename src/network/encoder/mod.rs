@@ -1,3 +1,4 @@
+use crate::network::{Network, NetworkConfig};
 use crate::vit::{VitOps, common::CommonVitModel, patch::PatchVitModel};
 use anyhow::{Result, anyhow};
 use burn::{
@@ -52,14 +53,14 @@ pub struct EncoderOutput<B: Backend> {
 
 #[derive(Debug, Default)]
 pub struct EncoderConfig {
-    dims_encoder: Vec<usize>,
-    patch_encoder_embed_dim: usize,
-    image_encoder_embed_dim: usize,
-    decoder_features: usize,
-    out_size: usize,
+    pub dims_encoder: Vec<usize>,
+    pub patch_encoder_embed_dim: usize,
+    pub image_encoder_embed_dim: usize,
+    pub decoder_features: usize,
+    pub out_size: usize,
 }
 
-impl<B: Backend> Encoder<B> {
+impl<B: Backend> Network<B> for Encoder<B> {
     /// Create a new encoder.
     ///
     /// # Arguments
@@ -69,7 +70,11 @@ impl<B: Backend> Encoder<B> {
     /// * `decoder_features` - The decoder features.
     /// * `device` - The device to use.
     /// * `out_size` - The output size.
-    pub fn new(config: EncoderConfig, device: &B::Device) -> Self {
+    fn new(config: NetworkConfig, device: &B::Device) -> Result<Self> {
+        let NetworkConfig::Encoder(config) = config else {
+            return Err(anyhow!("Invalid network configuration"));
+        };
+
         let EncoderConfig {
             dims_encoder,
             patch_encoder_embed_dim,
@@ -135,7 +140,7 @@ impl<B: Backend> Encoder<B> {
         .with_padding(PaddingConfig2d::Explicit(0, 0))
         .init::<B>(device);
 
-        Self {
+        Ok(Self {
             upsample_latent0,
             upsample_latent1,
             upsample0,
@@ -144,9 +149,11 @@ impl<B: Backend> Encoder<B> {
             upsample_lowres,
             fuse_lowres,
             out_size,
-        }
+        })
     }
+}
 
+impl<B: Backend> Encoder<B> {
     /// Create a pyramid of tensors.
     ///
     /// # Arguments
@@ -418,20 +425,11 @@ impl<B: Backend> Encoder<B> {
 mod tests {
     use super::*;
     use burn::backend::Metal;
-    use burn::record::{FullPrecisionSettings, Recorder};
     use burn::tensor::TensorData;
-    use burn_import::pytorch::PyTorchFileRecorder;
     use ndarray::Array4;
 
     fn create_encoder_with_weight() -> Encoder<Metal> {
         let device = Default::default();
-
-        let record = PyTorchFileRecorder::<FullPrecisionSettings>::default()
-            .load(
-                "/Users/marcintha/workspace/brioche/butter/encoder_only.pt".into(),
-                &device,
-            )
-            .unwrap();
 
         let encoder_config = EncoderConfig {
             dims_encoder: vec![256, 512, 1024, 1024],
@@ -441,7 +439,12 @@ mod tests {
             out_size: 384 / 16,
         };
 
-        let encoder = Encoder::<Metal>::new(encoder_config, &device).load_record(record);
+        let encoder = Encoder::<Metal>::new(NetworkConfig::Encoder(encoder_config), &device)
+            .unwrap()
+            .with_record(
+                "/Users/marcintha/workspace/brioche/butter/encoder_only.pt",
+                &device,
+            );
 
         encoder
     }
@@ -451,7 +454,7 @@ mod tests {
         let device = Default::default();
         // Create a patch encoder. The weight is loaded from the .onnx.data file automatically.
         let patch_encoder = PatchVitModel::new(
-            "/Users/marcintha/workspace/brioche/butter/depthpro_vit_patch.onnx",
+            "/Users/marcintha/workspace/brioche/butter/depthpro_vit_patch.onnx".into(),
             4,
         )
         .unwrap();

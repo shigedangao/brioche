@@ -1,5 +1,6 @@
+use super::{Network, NetworkConfig};
 use crate::vit::common::CommonVitModel;
-use anyhow::Result;
+use anyhow::{Result, anyhow};
 use burn::{
     Tensor,
     module::Module,
@@ -25,12 +26,12 @@ pub struct Fov<B: Backend> {
 
 #[derive(Debug, Clone)]
 pub struct FovConfig {
-    num_features: usize,
-    with_fov_encoder: bool,
-    embed_dim: usize,
+    pub num_features: usize,
+    pub with_fov_encoder: bool,
+    pub embed_dim: usize,
 }
 
-impl<B: Backend> Fov<B> {
+impl<B: Backend> Network<B> for Fov<B> {
     /// Create a new FovNetwork instance.
     /// /!\ Note that we could not pass the fov_encoder directly as the Session does not have the Copy & Clone trait.
     ///     As a result, it's not possible to pass the fov_encoder as an Option
@@ -44,7 +45,11 @@ impl<B: Backend> Fov<B> {
     /// # Returns
     ///
     /// A new FovNetwork instance.
-    pub fn new(config: FovConfig, device: &B::Device) -> Self {
+    fn new(config: NetworkConfig, device: &B::Device) -> Result<Self> {
+        let NetworkConfig::Fov(config) = config else {
+            return Err(anyhow!("Invalid network configuration"));
+        };
+
         let FovConfig {
             num_features,
             with_fov_encoder,
@@ -53,7 +58,7 @@ impl<B: Backend> Fov<B> {
 
         let fov_head0 = SequentialFovNetwork0::new(num_features, device);
 
-        match with_fov_encoder {
+        let fov = match with_fov_encoder {
             true => Self {
                 head: SequentialFovNetwork::new(num_features, None, device),
                 encoder: Some(SequentialFovNetworkEncoder::new(
@@ -68,9 +73,13 @@ impl<B: Backend> Fov<B> {
                 encoder: None,
                 downsample: None,
             },
-        }
-    }
+        };
 
+        Ok(fov)
+    }
+}
+
+impl<B: Backend> Fov<B> {
     /// Forward compute the output of the network.
     ///
     /// # Arguments
@@ -136,34 +145,29 @@ impl<B: Backend> Fov<B> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use burn::record::{FullPrecisionSettings, Recorder};
     use burn::{
         backend::Metal,
         tensor::{Distribution, Shape, TensorData},
     };
-    use burn_import::pytorch::PyTorchFileRecorder;
     use ndarray::Array4;
     use std::path::PathBuf;
 
     fn create_fov_model_with_weight() -> Fov<Metal> {
         let device = Default::default();
 
-        let record = PyTorchFileRecorder::<FullPrecisionSettings>::default()
-            .load(
-                "/Users/marcintha/workspace/brioche/butter/fov_only.pt".into(),
-                &device,
-            )
-            .unwrap();
-
         let fov = Fov::<Metal>::new(
-            FovConfig {
+            NetworkConfig::Fov(FovConfig {
                 num_features: 256,
                 with_fov_encoder: true,
                 embed_dim: 1024,
-            },
+            }),
             &device,
         )
-        .load_record(record);
+        .unwrap()
+        .with_record(
+            "/Users/marcintha/workspace/brioche/butter/fov_only.pt",
+            &device,
+        );
 
         fov
     }
@@ -181,13 +185,14 @@ mod tests {
         let fov_encoder = fov_encoder.unwrap();
 
         let mut fov = Fov::<Metal>::new(
-            FovConfig {
+            NetworkConfig::Fov(FovConfig {
                 num_features: 256,
                 with_fov_encoder: true,
                 embed_dim: 1024,
-            },
+            }),
             &device,
-        );
+        )
+        .unwrap();
 
         let x: Tensor<Metal, 4> = Tensor::random(
             Shape::new([1, 3, 1536, 1536]),

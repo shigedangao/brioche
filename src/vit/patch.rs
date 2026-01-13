@@ -1,3 +1,5 @@
+use std::path::PathBuf;
+
 use super::{VitOps, VitResult, utils};
 use anyhow::{Result, anyhow};
 use burn::Tensor;
@@ -11,7 +13,7 @@ pub struct PatchVitModel {
 }
 
 impl PatchVitModel {
-    pub fn new(model_path: &str, thread_nb: usize) -> Result<Self> {
+    pub fn new(model_path: PathBuf, thread_nb: usize) -> Result<Self> {
         let model = Session::builder()?
             .with_optimization_level(GraphOptimizationLevel::Level3)?
             .with_intra_threads(thread_nb)?

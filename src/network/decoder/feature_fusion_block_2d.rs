@@ -18,20 +18,19 @@ pub struct FeatureFusionBlock2D<B: Backend> {
     num_features: usize,
     deconv: Option<ConvTranspose2d<B>>,
     outconv: Conv2d<B>,
-    batch_norm: bool,
     resnet1: ResidualBlock<B>,
     resnet2: ResidualBlock<B>,
 }
 
 impl<B: Backend> FeatureFusionBlock2D<B> {
-    pub fn new(num_features: usize, deconv: bool, batch_norm: bool, device: &B::Device) -> Self {
+    pub fn new(num_features: usize, deconv: bool, device: &B::Device) -> Self {
         let conv_config = Conv2dConfig::new([num_features, num_features], [3, 3])
             .with_stride([1, 1])
             .with_padding(PaddingConfig2d::Explicit(1, 1))
             .with_bias(true)
             .init::<B>(&device);
 
-        let resnet1 = ResidualBlock::new([
+        let resnet1 = ResidualBlock::new(vec![
             SequentialNNModule {
                 relu: Relu::new(),
                 conv2d: conv_config.clone(),
@@ -44,7 +43,7 @@ impl<B: Backend> FeatureFusionBlock2D<B> {
             },
         ]);
 
-        let resnet2 = ResidualBlock::new([
+        let resnet2 = ResidualBlock::new(vec![
             SequentialNNModule {
                 relu: Relu::new(),
                 conv2d: conv_config.clone(),
@@ -67,7 +66,6 @@ impl<B: Backend> FeatureFusionBlock2D<B> {
 
         let mut ffb2d = Self {
             num_features,
-            batch_norm,
             deconv: None,
             outconv,
             resnet1,
@@ -99,6 +97,7 @@ impl<B: Backend> Decoder<B, 4> for FeatureFusionBlock2D<B> {
 
         if let Some(x1) = x1 {
             let (res, _) = self.resnet1.forward(DecoderType::ResidualBlock(x1))?;
+            // Equivalent of x = self.skip_add.add(x, res)
             x0 = x0 + res;
         }
 

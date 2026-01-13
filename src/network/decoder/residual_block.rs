@@ -34,11 +34,11 @@ impl<B: Backend> SequentialNNModule<B> {
 /// /!\ Note that the shortcut is not implemented as it seems unused.
 #[derive(Debug, Module)]
 pub struct ResidualBlock<B: Backend> {
-    sequential: [SequentialNNModule<B>; 2],
+    sequential: Vec<SequentialNNModule<B>>,
 }
 
 impl<B: Backend> ResidualBlock<B> {
-    pub fn new(sequential: [SequentialNNModule<B>; 2]) -> Self {
+    pub fn new(sequential: Vec<SequentialNNModule<B>>) -> Self {
         Self { sequential }
     }
 }
@@ -141,7 +141,7 @@ mod tests {
         )));
 
         let residual_block = ResidualBlock {
-            sequential: [
+            sequential: vec![
                 SequentialNNModule {
                     // Relu -> Transform the negative values to zero
                     relu: Relu::new(),

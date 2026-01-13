@@ -12,7 +12,7 @@ pub enum DecoderType<B: Backend> {
     ResidualBlock(Tensor<B, 4>),
 }
 
-pub type DecoderOutput<B: Backend> = (Tensor<B, 4>, Option<Tensor<B, 4>>);
+pub type DecoderOutput<B> = (Tensor<B, 4>, Option<Tensor<B, 4>>);
 
 pub trait Decoder<B: Backend, const S: usize> {
     fn forward(&self, arg: DecoderType<B>) -> Result<DecoderOutput<B>>;
