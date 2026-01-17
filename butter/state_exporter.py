@@ -5,6 +5,7 @@ import torch
 parser = argparse.ArgumentParser(description="Export state of the depth pro model")
 parser.add_argument("--fov", type=bool, required=False)
 parser.add_argument("--encoder", type=bool, required=False)
+parser.add_argument("--decoder", type=bool, required=False)
 
 args = parser.parse_args()
 
@@ -53,6 +54,69 @@ if args.encoder:
         "encoder.fuse_lowres.bias": "fuse_lowres.bias",
     }
     export_name = "encoder_only.pt"
+elif args.decoder:
+    rename_keys = {
+        # Start from convs.0 as the dimensions are equal @todo to change.
+        "decoder.convs.1.weight": "convs.1.weight",
+        "decoder.convs.2.weight": "convs.2.weight",
+        "decoder.convs.3.weight": "convs.3.weight",
+        "decoder.convs.4.weight": "convs.4.weight",
+        "decoder.fusions.0.resnet1.residual.1.weight": "fusions.0.resnet1.sequential.0.conv2d.weight",
+        "decoder.fusions.0.resnet1.residual.1.bias": "fusions.0.resnet1.sequential.0.conv2d.bias",
+        "decoder.fusions.0.resnet1.residual.3.weight": "fusions.0.resnet1.sequential.1.conv2d.weight",
+        "decoder.fusions.0.resnet1.residual.3.bias": "fusions.0.resnet1.sequential.1.conv2d.bias",
+        "decoder.fusions.0.resnet2.residual.1.weight": "fusions.0.resnet2.sequential.0.conv2d.weight",
+        "decoder.fusions.0.resnet2.residual.1.bias": "fusions.0.resnet2.sequential.0.conv2d.bias",
+        "decoder.fusions.0.resnet2.residual.3.weight": "fusions.0.resnet2.sequential.1.conv2d.weight",
+        "decoder.fusions.0.resnet2.residual.3.bias": "fusions.0.resnet2.sequential.1.conv2d.bias",
+        "decoder.fusions.0.out_conv.weight": "fusions.0.outconv.weight",
+        "decoder.fusions.0.out_conv.bias": "fusions.0.outconv.bias",
+        "decoder.fusions.1.resnet1.residual.1.weight": "fusions.1.resnet1.sequential.0.conv2d.weight",
+        "decoder.fusions.1.resnet1.residual.1.bias": "fusions.1.resnet1.sequential.0.conv2d.bias",
+        "decoder.fusions.1.resnet1.residual.3.weight": "fusions.1.resnet1.sequential.1.conv2d.weight",
+        "decoder.fusions.1.resnet1.residual.3.bias": "fusions.1.resnet1.sequential.1.conv2d.bias",
+        "decoder.fusions.1.resnet2.residual.1.weight": "fusions.1.resnet2.sequential.0.conv2d.weight",
+        "decoder.fusions.1.resnet2.residual.1.bias": "fusions.1.resnet2.sequential.0.conv2d.bias",
+        "decoder.fusions.1.resnet2.residual.3.weight": "fusions.1.resnet2.sequential.1.conv2d.weight",
+        "decoder.fusions.1.resnet2.residual.3.bias": "fusions.1.resnet2.sequential.1.conv2d.bias",
+        "decoder.fusions.1.deconv.weight": "fusions.1.deconv.weight",
+        "decoder.fusions.1.out_conv.weight": "fusions.1.outconv.weight",
+        "decoder.fusions.1.out_conv.bias": "fusions.1.outconv.bias",
+        "decoder.fusions.2.resnet1.residual.1.weight": "fusions.2.resnet1.sequential.0.conv2d.weight",
+        "decoder.fusions.2.resnet1.residual.1.bias": "fusions.2.resnet1.sequential.0.conv2d.bias",
+        "decoder.fusions.2.resnet1.residual.3.weight": "fusions.2.resnet1.sequential.1.conv2d.weight",
+        "decoder.fusions.2.resnet1.residual.3.bias": "fusions.2.resnet1.sequential.1.conv2d.bias",
+        "decoder.fusions.2.resnet2.residual.1.weight": "fusions.2.resnet2.sequential.0.conv2d.weight",
+        "decoder.fusions.2.resnet2.residual.1.bias": "fusions.2.resnet2.sequential.0.conv2d.bias",
+        "decoder.fusions.2.resnet2.residual.3.weight": "fusions.2.resnet2.sequential.1.conv2d.weight",
+        "decoder.fusions.2.resnet2.residual.3.bias": "fusions.2.resnet2.sequential.1.conv2d.bias",
+        "decoder.fusions.2.deconv.weight": "fusions.2.deconv.weight",
+        "decoder.fusions.2.out_conv.weight": "fusions.2.outconv.weight",
+        "decoder.fusions.2.out_conv.bias": "fusions.2.outconv.bias",
+        "decoder.fusions.3.resnet1.residual.1.weight": "fusions.3.resnet1.sequential.0.conv2d.weight",
+        "decoder.fusions.3.resnet1.residual.1.bias": "fusions.3.resnet1.sequential.0.conv2d.bias",
+        "decoder.fusions.3.resnet1.residual.3.weight": "fusions.3.resnet1.sequential.1.conv2d.weight",
+        "decoder.fusions.3.resnet1.residual.3.bias": "fusions.3.resnet1.sequential.1.conv2d.bias",
+        "decoder.fusions.3.resnet2.residual.1.weight": "fusions.3.resnet2.sequential.0.conv2d.weight",
+        "decoder.fusions.3.resnet2.residual.1.bias": "fusions.3.resnet2.sequential.0.conv2d.bias",
+        "decoder.fusions.3.resnet2.residual.3.weight": "fusions.3.resnet2.sequential.1.conv2d.weight",
+        "decoder.fusions.3.resnet2.residual.3.bias": "fusions.3.resnet2.sequential.1.conv2d.bias",
+        "decoder.fusions.3.deconv.weight": "fusions.3.deconv.weight",
+        "decoder.fusions.3.out_conv.weight": "fusions.3.outconv.weight",
+        "decoder.fusions.3.out_conv.bias": "fusions.3.outconv.bias",
+        "decoder.fusions.4.resnet1.residual.1.weight": "fusions.4.resnet1.sequential.0.conv2d.weight",
+        "decoder.fusions.4.resnet1.residual.1.bias": "fusions.4.resnet1.sequential.0.conv2d.bias",
+        "decoder.fusions.4.resnet1.residual.3.weight": "fusions.4.resnet1.sequential.1.conv2d.weight",
+        "decoder.fusions.4.resnet1.residual.3.bias": "fusions.4.resnet1.sequential.1.conv2d.bias",
+        "decoder.fusions.4.resnet2.residual.1.weight": "fusions.4.resnet2.sequential.0.conv2d.weight",
+        "decoder.fusions.4.resnet2.residual.1.bias": "fusions.4.resnet2.sequential.0.conv2d.bias",
+        "decoder.fusions.4.resnet2.residual.3.weight": "fusions.4.resnet2.sequential.1.conv2d.weight",
+        "decoder.fusions.4.resnet2.residual.3.bias": "fusions.4.resnet2.sequential.1.conv2d.bias",
+        "decoder.fusions.4.deconv.weight": "fusions.4.deconv.weight",
+        "decoder.fusions.4.out_conv.weight": "fusions.4.outconv.weight",
+        "decoder.fusions.4.out_conv.bias": "fusions.4.outconv.bias",
+    }
+    export_name = "decoder_only.pt"
 
 filtered_fov_state = {rename_keys[k]: v for k, v in state.items() if k in rename_keys}
 

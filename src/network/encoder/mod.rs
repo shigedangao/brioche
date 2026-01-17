@@ -1,3 +1,4 @@
+use crate::network::{Network, NetworkConfig};
 use crate::vit::{VitOps, common::CommonVitModel, patch::PatchVitModel};
 use anyhow::{Result, anyhow};
 use burn::{
@@ -50,7 +51,16 @@ pub struct EncoderOutput<B: Backend> {
     pub x_global_features: Tensor<B, 4>,
 }
 
-impl<B: Backend> Encoder<B> {
+#[derive(Debug, Default)]
+pub struct EncoderConfig {
+    pub dims_encoder: Vec<usize>,
+    pub patch_encoder_embed_dim: usize,
+    pub image_encoder_embed_dim: usize,
+    pub decoder_features: usize,
+    pub out_size: usize,
+}
+
+impl<B: Backend> Network<B> for Encoder<B> {
     /// Create a new encoder.
     ///
     /// # Arguments
@@ -60,14 +70,19 @@ impl<B: Backend> Encoder<B> {
     /// * `decoder_features` - The decoder features.
     /// * `device` - The device to use.
     /// * `out_size` - The output size.
-    fn new(
-        dims_encoder: Vec<usize>,
-        patch_encoder_embed_dim: usize,
-        image_encoder_embed_dim: usize,
-        decoder_features: usize,
-        device: &B::Device,
-        out_size: usize,
-    ) -> Self {
+    fn new(config: NetworkConfig, device: &B::Device) -> Result<Self> {
+        let NetworkConfig::Encoder(config) = config else {
+            return Err(anyhow!("Invalid network configuration"));
+        };
+
+        let EncoderConfig {
+            dims_encoder,
+            patch_encoder_embed_dim,
+            image_encoder_embed_dim,
+            decoder_features,
+            out_size,
+        } = config;
+
         let upsample_latent0 = ProjectionSeq::new(
             patch_encoder_embed_dim,
             dims_encoder.first().copied(),
@@ -125,7 +140,7 @@ impl<B: Backend> Encoder<B> {
         .with_padding(PaddingConfig2d::Explicit(0, 0))
         .init::<B>(device);
 
-        Self {
+        Ok(Self {
             upsample_latent0,
             upsample_latent1,
             upsample0,
@@ -134,9 +149,11 @@ impl<B: Backend> Encoder<B> {
             upsample_lowres,
             fuse_lowres,
             out_size,
-        }
+        })
     }
+}
 
+impl<B: Backend> Encoder<B> {
     /// Create a pyramid of tensors.
     ///
     /// # Arguments
@@ -291,7 +308,7 @@ impl<B: Backend> Encoder<B> {
     /// * `batch_size` - The batch size.
     /// * `padding` - The padding.
     /// * `device` - The device.
-    fn forward(
+    pub fn forward(
         &self,
         input: Tensor<B, 4>,
         mut patch_encoder: PatchVitModel,
@@ -408,31 +425,26 @@ impl<B: Backend> Encoder<B> {
 mod tests {
     use super::*;
     use burn::backend::Metal;
-    use burn::record::{FullPrecisionSettings, Recorder};
     use burn::tensor::TensorData;
-    use burn_import::pytorch::PyTorchFileRecorder;
     use ndarray::Array4;
 
     fn create_encoder_with_weight() -> Encoder<Metal> {
         let device = Default::default();
 
-        let record = PyTorchFileRecorder::<FullPrecisionSettings>::default()
-            .load(
-                "/Users/marcintha/workspace/brioche/butter/encoder_only.pt".into(),
-                &device,
-            )
-            .unwrap();
+        let encoder_config = EncoderConfig {
+            dims_encoder: vec![256, 512, 1024, 1024],
+            patch_encoder_embed_dim: 1024,
+            image_encoder_embed_dim: 1024,
+            decoder_features: 256,
+            out_size: 384 / 16,
+        };
 
-        // For testing we use ndarray. But it'd be better to use Wgpu or else.
-        let encoder = Encoder::<Metal>::new(
-            vec![256, 512, 1024, 1024],
-            1024,
-            1024,
-            256,
-            &device,
-            384 / 16,
-        )
-        .load_record(record);
+        let encoder = Encoder::<Metal>::new(NetworkConfig::Encoder(encoder_config), &device)
+            .unwrap()
+            .with_record(
+                "/Users/marcintha/workspace/brioche/butter/encoder_only.pt",
+                &device,
+            );
 
         encoder
     }
@@ -442,7 +454,7 @@ mod tests {
         let device = Default::default();
         // Create a patch encoder. The weight is loaded from the .onnx.data file automatically.
         let patch_encoder = PatchVitModel::new(
-            "/Users/marcintha/workspace/brioche/butter/depthpro_vit_patch.onnx",
+            "/Users/marcintha/workspace/brioche/butter/depthpro_vit_patch.onnx".into(),
             4,
         )
         .unwrap();
