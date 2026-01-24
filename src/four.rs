@@ -1,3 +1,4 @@
+use crate::brioche_seq::BriocheHeadConfig;
 use crate::network::decoder::multires_conv::MultiResDecoderConfig;
 use crate::network::encoder::EncoderConfig;
 use crate::network::fov::FovConfig;
@@ -7,9 +8,9 @@ use crate::vit::patch::PatchVitModel;
 use crate::{Brioche, network::Network};
 use anyhow::{Result, anyhow};
 use burn::prelude::Backend;
-use colorgrad::Gradient;
-use image::RgbImage;
-use ndarray::Array;
+use burn::tensor::Transaction;
+use image::{ImageBuffer, Rgb};
+use ndarray::{Array, Array2};
 use ndarray_stats::QuantileExt;
 use std::path::PathBuf;
 
@@ -43,9 +44,10 @@ impl<B: Backend> Four<B> {
         patch_vit_path: S,
         image_vit_path: S,
         vit_thread_nb: usize,
-        decoder_weight_path: S,
-        encoder_weight_path: S,
         fov_weight_path: S,
+        encoder_weight_path: S,
+        decoder_weight_path: S,
+        head_weight_path: S,
     ) -> Result<Self> {
         let fov_model =
             CommonVitModel::new(PathBuf::from(fov_encoder_path.as_ref()), vit_thread_nb)?;
@@ -76,15 +78,19 @@ impl<B: Backend> Four<B> {
             embed_dim: EMBED_DIM,
         };
 
+        let brioche_head_config = BriocheHeadConfig {
+            last_dims: LAST_DIMS,
+            dim_decoder: DIM_DECODER,
+        };
+
         let device = Default::default();
 
         // Create the brioche (depth-pro)model
         let mut bm = Brioche::<B>::new(
-            LAST_DIMS,
-            DIM_DECODER,
             encoder_config,
             decoder_config,
             fov_config,
+            brioche_head_config,
             &device,
         )?;
 
@@ -92,6 +98,7 @@ impl<B: Backend> Four<B> {
         bm.decoder = bm.decoder.with_record(decoder_weight_path, &device);
         bm.encoder = bm.encoder.with_record(encoder_weight_path, &device);
         bm.fov = bm.fov.with_record(fov_weight_path, &device);
+        bm.head = bm.head.with_record(head_weight_path, &device);
 
         Ok(Self {
             model: bm,
@@ -104,8 +111,10 @@ impl<B: Backend> Four<B> {
 
     /// Four run the brioche (depth-pro) model and export the output image into a buffer
     pub fn run<S: AsRef<str>>(mut self, image_path: S) -> Result<()> {
-        let img = image::open(PathBuf::from(image_path.as_ref()))?;
-        let input = utils::preprocess_image::<B>(&img, &self.device)?;
+        let img = image::open(PathBuf::from(image_path.as_ref()))
+            .map_err(|err| anyhow!("Unable to load the image due to {err}"))?;
+        let input = utils::preprocess_image::<B>(&img, &self.device)
+            .map_err(|err| anyhow!("Unable to preprocess the image due to {err}"))?;
 
         let (depth, focallength_px) = self.model.infer(
             input,
@@ -115,13 +124,24 @@ impl<B: Backend> Four<B> {
             ENCODER_IMG_SIZE,
             &self.device,
         )?;
-        dbg!(focallength_px);
 
-        let [b, c, h, w]: [usize; 4] = depth.shape().dims();
-        let depth_tensor_data: Vec<f64> = depth.to_data().to_vec()?;
+        let [h, w]: [usize; 2] = depth.shape().dims();
+        let tensor_data = Transaction::default().register(depth).execute();
+
+        let depth_tensor_data: Vec<f32> = match tensor_data.first() {
+            Some(d) => d.to_vec().map_err(|err| {
+                anyhow!("Unable to convert the tensor to a vector due to {:?}", err)
+            })?,
+            None => {
+                return Err(anyhow!(
+                    "Unable to convert the tensor to a vector due to {:?}",
+                    tensor_data
+                ));
+            }
+        };
 
         // Use ndarray in order to perform the operation
-        let squeezed_depth = Array::from_shape_vec((b, c, h, w), depth_tensor_data)?
+        let squeezed_depth = Array::from_shape_vec((h, w), depth_tensor_data)?
             .into_dyn()
             .squeeze();
 
@@ -150,34 +170,19 @@ impl<B: Backend> Four<B> {
             idn_shape.get(1).copied().unwrap_or_default(),
         );
 
-        // Create the turbo gradient
-        let gradient = colorgrad::preset::turbo();
+        // Normalized the matrix to a defined shape of two (heigh, width).
+        let inverse_depth_normalized_normalized: Array2<f32> = inverse_depth_normalized
+            .map(|v| v.clamp(0., 1.0))
+            .into_shape_with_order((height, width))?;
 
-        // Create an RGB image buffer
-        let mut img_buffer = RgbImage::new(width as u32, height as u32);
+        let cmap_matrix = utils::cmap(&inverse_depth_normalized_normalized);
+        let cmap_matrix = utils::drop_alpha(cmap_matrix);
 
-        // Map each normalized depth value to a color
-        for y in 0..height {
-            for x in 0..width {
-                let value = inverse_depth_normalized[[y, x]];
+        let (raw_vec, _) = cmap_matrix.into_raw_vec_and_offset();
+        let img_buffer: ImageBuffer<Rgb<u8>, Vec<u8>> =
+            ImageBuffer::from_raw(width as u32, height as u32, raw_vec).unwrap();
 
-                // Clamp value to [0, 1] range to be safe
-                let clamped_value = value.clamp(0.0, 1.0);
-
-                // Get the color from the gradient
-                let color = gradient.at(clamped_value as f32);
-                let rgba = color.to_rgba8();
-
-                // Set the pixel (taking only RGB, ignoring alpha)
-                img_buffer.put_pixel(x as u32, y as u32, image::Rgb([rgba[0], rgba[1], rgba[2]]));
-            }
-        }
-
-        // Save the image
-        let color_map_output_file = format!("{}.jpg", "test");
-        img_buffer
-            .save_with_format(&color_map_output_file, image::ImageFormat::Jpeg)
-            .map_err(|err| anyhow!("Failed to save color-mapped depth: {err}"))?;
+        img_buffer.save("test.jpg")?;
 
         Ok(())
     }

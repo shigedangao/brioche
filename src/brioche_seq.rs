@@ -1,3 +1,5 @@
+use crate::network::{Network, NetworkConfig};
+use anyhow::{Result, anyhow};
 use burn::{
     module::Module,
     nn::{
@@ -7,6 +9,11 @@ use burn::{
     prelude::Backend,
     tensor::Tensor,
 };
+
+pub struct BriocheHeadConfig {
+    pub dim_decoder: usize,
+    pub last_dims: (usize, usize),
+}
 
 #[derive(Debug, Module)]
 pub struct BriocheSeq<B: Backend> {
@@ -18,7 +25,7 @@ pub struct BriocheSeq<B: Backend> {
     relu1: Relu,
 }
 
-impl<B: Backend> BriocheSeq<B> {
+impl<B: Backend> Network<B> for BriocheSeq<B> {
     /// Creates a new instance of `BriocheSeq`.
     /// This refer to the "head" sequential part of the DepthPro module. Refer to the link below
     /// @link https://github.com/apple/ml-depth-pro/blob/9efe5c1def37a26c5367a71df664b18e1306c708/src/depth_pro/depth_pro.py#L182
@@ -27,7 +34,19 @@ impl<B: Backend> BriocheSeq<B> {
     /// * dim_decoder - usize
     /// * last_dims - (usize, usize)
     /// * device: &B::Device
-    pub fn new(dim_decoder: usize, last_dims: (usize, usize), device: &B::Device) -> Self {
+    fn new(config: NetworkConfig, device: &<B as Backend>::Device) -> Result<Self>
+    where
+        Self: Sized,
+    {
+        let NetworkConfig::Head(config) = config else {
+            return Err(anyhow!("BriocheSeq expects a Head config".to_string()));
+        };
+
+        let BriocheHeadConfig {
+            dim_decoder,
+            last_dims,
+        } = config;
+
         let conv2d0 = Conv2dConfig::new([dim_decoder, dim_decoder / 2], [3, 3])
             .with_stride([1, 1])
             .with_padding(PaddingConfig2d::Explicit(1, 1))
@@ -38,17 +57,19 @@ impl<B: Backend> BriocheSeq<B> {
             ConvTranspose2dConfig::new([dim_decoder / 2, dim_decoder / 2], [2, 2])
                 .with_stride([2, 2])
                 .with_padding([0, 0])
-                .with_bias(false)
+                .with_bias(true)
                 .init::<B>(&device);
 
         let conv2d1 = Conv2dConfig::new([dim_decoder / 2, last_dims.0], [3, 3])
             .with_stride([1, 1])
             .with_padding(PaddingConfig2d::Explicit(1, 1))
+            .with_bias(true)
             .init::<B>(&device);
 
         let mut conv2d2 = Conv2dConfig::new([last_dims.0, last_dims.1], [1, 1])
             .with_stride([1, 1])
             .with_padding(PaddingConfig2d::Explicit(0, 0))
+            .with_bias(true)
             .init::<B>(&device);
 
         // Set the final convolution layer's bias to be 0.
@@ -62,16 +83,18 @@ impl<B: Backend> BriocheSeq<B> {
             *bias = res;
         }
 
-        Self {
+        Ok(Self {
             conv2d0,
             conv_transpose2d,
             conv2d1,
             relu0: Relu::new(),
             conv2d2,
             relu1: Relu::new(),
-        }
+        })
     }
+}
 
+impl<B: Backend> BriocheSeq<B> {
     /// Forward pass of the network.
     ///
     /// # Arguments

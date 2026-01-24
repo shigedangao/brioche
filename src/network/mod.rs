@@ -1,3 +1,4 @@
+use crate::brioche_seq::BriocheHeadConfig;
 use crate::network::decoder::multires_conv::MultiResDecoderConfig;
 use crate::network::encoder::EncoderConfig;
 use crate::network::fov::FovConfig;
@@ -15,6 +16,7 @@ pub enum NetworkConfig {
     Encoder(EncoderConfig),
     Fov(FovConfig),
     Decoder(MultiResDecoderConfig),
+    Head(BriocheHeadConfig),
 }
 
 pub trait Network<B: Backend> {

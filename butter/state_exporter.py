@@ -6,6 +6,7 @@ parser = argparse.ArgumentParser(description="Export state of the depth pro mode
 parser.add_argument("--fov", type=bool, required=False)
 parser.add_argument("--encoder", type=bool, required=False)
 parser.add_argument("--decoder", type=bool, required=False)
+parser.add_argument("--head", type=bool, required=False)
 
 args = parser.parse_args()
 
@@ -117,6 +118,18 @@ elif args.decoder:
         "decoder.fusions.4.out_conv.bias": "fusions.4.outconv.bias",
     }
     export_name = "decoder_only.pt"
+elif args.head:
+    rename_keys = {
+        "head.0.weight": "conv2d0.weight",
+        "head.0.bias": "conv2d0.bias",
+        "head.1.weight": "conv_transpose2d.weight",
+        "head.1.bias": "conv_transpose2d.bias",
+        "head.2.weight": "conv2d1.weight",
+        "head.2.bias": "conv2d1.bias",
+        "head.4.weight": "conv2d2.weight",
+        "head.4.bias": "conv2d2.bias",
+    }
+    export_name = "head.pt"
 
 filtered_fov_state = {rename_keys[k]: v for k, v in state.items() if k in rename_keys}
 
