@@ -1,5 +1,5 @@
 use super::{Network, NetworkConfig};
-use crate::vit::common::CommonVitModel;
+use crate::{MixedFloats, vit::common::CommonVitModel};
 use anyhow::{Result, anyhow};
 use burn::{
     Tensor,
@@ -90,7 +90,7 @@ impl<B: Backend> Fov<B> {
     ///
     /// # Returns
     /// The output tensor.
-    pub fn forward(
+    pub fn forward<F: MixedFloats>(
         &mut self,
         x: Tensor<B, 4>,
         lowres_feature: Tensor<B, 4>,
@@ -109,7 +109,8 @@ impl<B: Backend> Fov<B> {
 
                 // Encode the interpolated features
                 let mut fov_encoder = fov_encoder;
-                let encoder_out = encoder.forward(interpolated_out, &device, &mut fov_encoder)?;
+                let encoder_out =
+                    encoder.forward::<F>(interpolated_out, &device, &mut fov_encoder)?;
 
                 // Slice to remove first token (dimension 1, from index 1 onwards)
                 let sliced_out = encoder_out.slice([
@@ -203,7 +204,7 @@ mod tests {
             &device,
         );
 
-        let res = fov.forward(x, lowres_feature, fov_encoder, &device);
+        let res = fov.forward::<f32>(x, lowres_feature, fov_encoder, &device);
         assert!(res.is_ok());
     }
 
@@ -233,7 +234,7 @@ mod tests {
 
         let mut fov = create_fov_model_with_weight();
 
-        let res = fov.forward(x, low_res.detach(), fov_encoder, &device);
+        let res = fov.forward::<f32>(x, low_res.detach(), fov_encoder, &device);
 
         // @TODO test value, so far quite far i don't really know why
         let res = res.unwrap();

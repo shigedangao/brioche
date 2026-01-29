@@ -11,15 +11,25 @@ use crate::vit::patch::PatchVitModel;
 use anyhow::{Result, anyhow};
 use brioche_seq::{BriocheHeadConfig, BriocheSeq};
 use burn::Tensor;
+use burn::backend::wgpu::FloatElement;
 use burn::nn::interpolate::{Interpolate2dConfig, InterpolateMode};
 use burn::prelude::{Backend, Module};
-use ndarray::Array;
+use burn::tensor::f16;
+use ort::tensor::PrimitiveTensorElementType;
 
 mod brioche_seq;
 pub mod four;
 mod network;
 mod utils;
 mod vit;
+
+/// MixedFloats is a trait that defines a type that can be used as a placeholder to support F32 & F16 float types.
+pub trait MixedFloats: FloatElement + PrimitiveTensorElementType {}
+
+// Blanket implementation
+impl MixedFloats for f32 {}
+impl MixedFloats for f64 {}
+impl MixedFloats for f16 {}
 
 // Constants
 const CLAMP_MIN: f32 = 1e-4;
@@ -66,7 +76,7 @@ impl<B: Backend> Brioche<B> {
     /// # Returns
     /// * `Tensor<B, 4>` - The depth tensor.
     /// * `Tensor<B, 4>` - The field of view tensor.
-    pub fn infer(
+    pub fn infer<F: MixedFloats>(
         &mut self,
         input: Tensor<B, 3>,
         patch_encoder: PatchVitModel,
@@ -92,26 +102,19 @@ impl<B: Backend> Brioche<B> {
             false => (x, false),
         };
 
-        let (canonical_inverse_depth, fov_deg) = self.forward(
-            interpolated_tensor,
-            patch_encoder,
-            image_encoder,
-            fov_image_encoder,
-            img_size,
-            device,
-        )?;
+        let (canonical_inverse_depth, fov_deg) = self
+            .forward::<F>(
+                interpolated_tensor,
+                patch_encoder,
+                image_encoder,
+                fov_image_encoder,
+                img_size,
+                device,
+            )
+            .map_err(|err| anyhow!("Unable to perform the forward of the model due to {err}"))?;
 
         let fov_deg_to_rad = fov_deg * PI / 180.;
         let f_px = 0.5 * w as f32 / (fov_deg_to_rad * 0.5).tan();
-
-        let c: Vec<f32> = f_px.to_data().to_vec().unwrap();
-
-        ndarray_npy::write_npy(
-            "./fpx.npy",
-            &Array::from_shape_vec((1, 1, 1, 1), c).unwrap().into_dyn(),
-        )
-        .unwrap();
-
         let mut inverse_depth = canonical_inverse_depth * (w as f32 / f_px.clone());
 
         let mut f_px_squeeze = None;
@@ -148,7 +151,7 @@ impl<B: Backend> Brioche<B> {
     /// # Returns
     /// * `canonical_inverse_depth` - Canonical inverse depth tensor of shape [batch_size, channels, height, width].
     /// * `fov_deg` - Field of view angle tensor of shape [batch_size, channels, height, width].
-    pub fn forward(
+    pub fn forward<F: MixedFloats>(
         &mut self,
         input: Tensor<B, 4>,
         patch_encoder: PatchVitModel,
@@ -164,19 +167,9 @@ impl<B: Backend> Brioche<B> {
 
         let encodings =
             self.encoder
-                .forward(input.clone(), patch_encoder, image_encoder, device)?;
+                .forward::<F>(input.clone(), patch_encoder, image_encoder, device)?;
 
         dbg!("encoder finish");
-
-        // let c: Vec<f32> = encodings.x_latent0_features.to_data().to_vec().unwrap();
-
-        // ndarray_npy::write_npy(
-        //     "./x_latent0_features.npy",
-        //     &Array::from_shape_vec((1, 256, 768, 768), c)
-        //         .unwrap()
-        //         .into_dyn(),
-        // )
-        // .unwrap();
 
         let (features, features_0) = self.decoder.forward(DecoderType::MultiResConv(vec![
             encodings.x_latent0_features,
@@ -195,7 +188,7 @@ impl<B: Backend> Brioche<B> {
 
         let fov_deg = self
             .fov
-            .forward(
+            .forward::<F>(
                 input,
                 features_0.unwrap().detach(),
                 fov_image_encoder,

@@ -1,3 +1,4 @@
+use crate::MixedFloats;
 use crate::brioche_seq::BriocheHeadConfig;
 use crate::network::decoder::multires_conv::MultiResDecoderConfig;
 use crate::network::encoder::EncoderConfig;
@@ -110,13 +111,17 @@ impl<B: Backend> Four<B> {
     }
 
     /// Four run the brioche (depth-pro) model and export the output image into a buffer
-    pub fn run<S: AsRef<str>>(mut self, image_path: S) -> Result<()> {
+    pub fn run<S: AsRef<str>, F: MixedFloats>(
+        mut self,
+        image_path: S,
+        is_half_precision: bool,
+    ) -> Result<()> {
         let img = image::open(PathBuf::from(image_path.as_ref()))
             .map_err(|err| anyhow!("Unable to load the image due to {err}"))?;
-        let input = utils::preprocess_image::<B>(&img, &self.device)
+        let input = utils::preprocess_image::<B>(&img, &self.device, is_half_precision)
             .map_err(|err| anyhow!("Unable to preprocess the image due to {err}"))?;
 
-        let (depth, focallength_px) = self.model.infer(
+        let (depth, _focallength_px) = self.model.infer::<F>(
             input,
             self.patch_model,
             self.image_model,

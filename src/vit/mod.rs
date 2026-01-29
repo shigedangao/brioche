@@ -6,6 +6,8 @@ use burn::{
 };
 use ort::tensor::Shape;
 
+use crate::MixedFloats;
+
 pub mod common;
 pub mod patch;
 
@@ -26,7 +28,7 @@ pub trait VitOps {
     /// # Returns
     /// A `Result` containing the output tensor of shape (batch_size, num_patches, embedding_dim),
     /// and two optional hooks for intermediate results.
-    fn forward<B: Backend>(
+    fn forward<B: Backend, F: MixedFloats>(
         &mut self,
         input: Tensor<B, 4>,
         device: &B::Device,
@@ -34,6 +36,8 @@ pub trait VitOps {
 }
 
 mod utils {
+    use crate::MixedFloats;
+
     use super::*;
     use ort::session::SessionOutputs;
 
@@ -64,14 +68,14 @@ mod utils {
     ///
     /// # Returns
     /// A `Result` containing the burn tensor.
-    pub fn get_burn_tensor_from_ort<B: Backend, const S: usize>(
+    pub fn get_burn_tensor_from_ort<B: Backend, const S: usize, F: MixedFloats>(
         output: &SessionOutputs,
         output_ident: &str,
         device: &B::Device,
     ) -> Result<Tensor<B, S>> {
         let tensor = match output.get(output_ident) {
             Some(output) => {
-                let (shape, data) = output.try_extract_tensor::<f32>()?;
+                let (shape, data) = output.try_extract_tensor::<F>()?;
                 let shape_slice = utils::extract_tensor_shape::<S>(shape)?;
                 let tensor_data = TensorData::new(data.to_vec(), BurnShape::new(shape_slice));
 

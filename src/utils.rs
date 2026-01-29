@@ -1,12 +1,10 @@
 use anyhow::Result;
-use burn::Tensor;
-use burn::module::{ModuleMapper, Param};
 use burn::prelude::Backend;
 use burn::tensor::TensorData;
+use burn::{Tensor, tensor::FloatDType};
 use colorgrad::Gradient;
 use image::DynamicImage;
 use ndarray::{Array2, Array3, s};
-use std::f32::consts::PI;
 
 /// Preprocess an image by converting it to RGB, normalizing pixel values, and reshaping it.
 /// This step reprseents the following set of "functions"
@@ -26,6 +24,7 @@ use std::f32::consts::PI;
 pub fn preprocess_image<B: Backend>(
     img: &DynamicImage,
     device: &B::Device,
+    is_half_precision: bool,
 ) -> Result<Tensor<B, 3>> {
     // Convert the image to rgb if needed
     let rgb_img = img.to_rgb32f();
@@ -60,7 +59,11 @@ pub fn preprocess_image<B: Backend>(
     let std = std.reshape([3, 1, 1]);
 
     // normalize the tensor
-    let tensor = (tensor - mean) / std;
+    let mut tensor = (tensor - mean) / std;
+
+    if is_half_precision {
+        tensor = tensor.cast(FloatDType::F16);
+    }
 
     Ok(tensor)
 }
