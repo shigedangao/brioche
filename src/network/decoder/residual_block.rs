@@ -53,7 +53,7 @@ impl<B: Backend> Decoder<B, 4> for ResidualBlock<B> {
         let forward_init = self
             .sequential
             .first()
-            .map(|seq| seq.forward(tensor))
+            .map(|seq| seq.forward(tensor.clone()))
             .ok_or(anyhow!(
                 "Expect to compute the tensor for the first sequential nn"
             ))?;
@@ -66,7 +66,7 @@ impl<B: Backend> Decoder<B, 4> for ResidualBlock<B> {
                 "Expect to compute the tensor for the second sequential nn"
             ))?;
 
-        Ok((delta_x, None))
+        Ok((tensor + delta_x, None))
     }
 }
 

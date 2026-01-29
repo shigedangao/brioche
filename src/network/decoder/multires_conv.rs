@@ -40,7 +40,7 @@ impl<B: Backend> Network<B> for MultiResConv<B> {
             _ => {
                 let conv_config = Conv2dConfig::new([*dim, dim_decoder], [1, 1])
                     .with_stride([1, 1])
-                    .with_padding(PaddingConfig2d::Explicit(1, 1))
+                    .with_padding(PaddingConfig2d::Explicit(0, 0))
                     .with_bias(false)
                     .init::<B>(&device);
 

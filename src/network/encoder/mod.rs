@@ -159,8 +159,6 @@ impl<B: Backend> Encoder<B> {
     /// # Arguments
     /// * `x` - The input tensor.
     fn create_pyramid(&self, x: Tensor<B, 4>) -> (Tensor<B, 4>, Tensor<B, 4>, Tensor<B, 4>) {
-        let x0 = x.clone();
-
         let x1_interpolate = Interpolate2dConfig::new()
             .with_scale_factor(Some([0.5, 0.5]))
             .with_mode(InterpolateMode::Linear)
@@ -175,11 +173,11 @@ impl<B: Backend> Encoder<B> {
 
         (
             // Original resolution: 1536 by default.
-            x,
+            x.clone(),
             // Half resolution: 768 by default.
-            x1_interpolate.forward(x0.clone()),
+            x1_interpolate.forward(x.clone()),
             // Quarter resolution: 384 by default. corresponding to the backbone resolution.
-            x2_interpolate.forward(x0),
+            x2_interpolate.forward(x.clone()),
         )
     }
 
@@ -270,24 +268,15 @@ impl<B: Backend> Encoder<B> {
                     0..width,
                 ]);
 
-                if j != 0 {
-                    // /!\ Get the shape of the output tensor before each slicing as the shape change after each slicing operation
-                    //     pytorch may be doing this under the hood.
-                    let [ob, oc, oh, ow] = output.shape().dims();
-                    output = output.slice([0..ob, 0..oc, padding..oh, 0..ow]);
-                }
-                if i != 0 {
-                    let [ob, oc, oh, ow] = output.shape().dims();
-                    output = output.slice([0..ob, 0..oc, 0..oh, padding..ow]);
-                }
-                if j != steps - 1 {
-                    let [ob, oc, oh, ow] = output.shape().dims();
-                    output = output.slice([0..ob, 0..oc, 0..oh - padding, 0..ow]);
-                }
-                if i != steps - 1 {
-                    let [ob, oc, oh, ow] = output.shape().dims();
-                    output = output.slice([0..ob, 0..oc, 0..oh, 0..ow - padding]);
-                }
+                let [ob, oc, oh, ow] = output.shape().dims();
+
+                let h_start = if j != 0 { padding } else { 0 };
+                let w_start = if i != 0 { padding } else { 0 };
+
+                let h_end = if j != steps - 1 { oh - padding } else { oh };
+                let w_end = if i != steps - 1 { ow - padding } else { ow };
+
+                output = output.slice([0..ob, 0..oc, h_start..h_end, w_start..w_end]);
 
                 output_row_list.push(output);
                 idx += 1;
@@ -363,7 +352,7 @@ impl<B: Backend> Encoder<B> {
 
         // Using target_batch_size.min(w0) for width in order not to exceed the batch size
         let x0_latent_features = self.merge(
-            x_latent0_encodings.slice([0..x0, 0..c0, 0..h0, 0..target_batch_size.min(w0)]),
+            x_latent0_encodings.slice([0..target_batch_size.min(x0), 0..c0, 0..h0, 0..w0]),
             batch_size,
             3,
         )?;
@@ -373,7 +362,7 @@ impl<B: Backend> Encoder<B> {
             self.reshape_feature(bb_highres_hook1.unwrap(), self.out_size, self.out_size);
         let [x1, c1, h1, w1] = x_latent1_encodings.shape().dims();
         let x1_latent_features = self.merge(
-            x_latent1_encodings.slice([0..x1, 0..c1, 0..h1, 0..target_batch_size.min(w1)]),
+            x_latent1_encodings.slice([0..target_batch_size.min(x1), 0..c1, 0..h1, 0..w1]),
             batch_size,
             3,
         )?;

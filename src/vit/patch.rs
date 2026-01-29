@@ -1,11 +1,11 @@
-use std::path::PathBuf;
-
 use super::{VitOps, VitResult, utils};
 use anyhow::{Result, anyhow};
 use burn::Tensor;
 use burn::prelude::Backend;
+use burn::tensor::Transaction;
 use ort::session::{Session, builder::GraphOptimizationLevel};
 use ort::value::Tensor as OrtTensor;
+use std::path::PathBuf;
 
 #[derive(Debug)]
 pub struct PatchVitModel {
@@ -15,7 +15,7 @@ pub struct PatchVitModel {
 impl PatchVitModel {
     pub fn new(model_path: PathBuf, thread_nb: usize) -> Result<Self> {
         let model = Session::builder()?
-            .with_optimization_level(GraphOptimizationLevel::Level3)?
+            .with_optimization_level(GraphOptimizationLevel::All)?
             .with_intra_threads(thread_nb)?
             .commit_from_file(model_path)?;
 
@@ -29,14 +29,21 @@ impl VitOps for PatchVitModel {
         input: Tensor<B, 4>,
         device: &B::Device,
     ) -> Result<VitResult<B>> {
-        // @TODO use transaction
-        let tensor_data: Vec<f32> = input
-            .to_data()
-            .to_vec()
-            .map_err(|err| anyhow!("Unable to convert the tensor to a vector due to {:?}", err))?;
+        let tensor_data = Transaction::default().register(input).execute();
 
-        // @TODO replace with shape of actual tensor
-        let ort_tensor: OrtTensor<f32> = OrtTensor::from_array(([35, 3, 384, 384], tensor_data))?;
+        let data: Vec<f32> = match tensor_data.first() {
+            Some(d) => d.to_vec().map_err(|err| {
+                anyhow!("Unable to convert the tensor to a vector due to {:?}", err)
+            })?,
+            None => {
+                return Err(anyhow!(
+                    "Unable to convert the tensor to a vector due to {:?}",
+                    tensor_data
+                ));
+            }
+        };
+
+        let ort_tensor: OrtTensor<f32> = OrtTensor::from_array(([35, 3, 384, 384], data))?;
         let output = self.model.run(ort::inputs!["x" => ort_tensor])?;
 
         let tensor = utils::get_burn_tensor_from_ort(&output, "final_output", device)?;

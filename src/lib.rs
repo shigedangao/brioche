@@ -1,4 +1,6 @@
 #![recursion_limit = "256"]
+use std::f32::consts::PI;
+
 use crate::network::decoder::multires_conv::{MultiResConv, MultiResDecoderConfig};
 use crate::network::decoder::{Decoder, DecoderType};
 use crate::network::encoder::{Encoder, EncoderConfig};
@@ -7,11 +9,11 @@ use crate::network::{Network, NetworkConfig};
 use crate::vit::common::CommonVitModel;
 use crate::vit::patch::PatchVitModel;
 use anyhow::{Result, anyhow};
-use brioche_seq::BriocheSeq;
+use brioche_seq::{BriocheHeadConfig, BriocheSeq};
 use burn::Tensor;
-use burn::nn::interpolate::{Interpolate1dConfig, Interpolate2dConfig, InterpolateMode};
+use burn::nn::interpolate::{Interpolate2dConfig, InterpolateMode};
 use burn::prelude::{Backend, Module};
-use utils::DegToRad;
+use ndarray::Array;
 
 mod brioche_seq;
 pub mod four;
@@ -36,17 +38,14 @@ pub struct Brioche<B: Backend> {
 
 impl<B: Backend> Brioche<B> {
     pub fn new(
-        last_dims: (usize, usize),
-        dim_decoder: usize,
         encoder_config: EncoderConfig,
         decoder_config: MultiResDecoderConfig,
         fov_config: FovConfig,
+        head_config: BriocheHeadConfig,
         device: &B::Device,
     ) -> Result<Self> {
-        let head = BriocheSeq::new(dim_decoder, last_dims, device);
-
         Ok(Self {
-            head,
+            head: BriocheSeq::<B>::new(NetworkConfig::Head(head_config), &device)?,
             encoder: Encoder::<B>::new(NetworkConfig::Encoder(encoder_config), &device)?,
             decoder: MultiResConv::<B>::new(NetworkConfig::Decoder(decoder_config), &device)?,
             fov: Fov::<B>::new(NetworkConfig::Fov(fov_config), &device)?,
@@ -75,26 +74,26 @@ impl<B: Backend> Brioche<B> {
         fov_image_encoder: CommonVitModel,
         img_size: usize,
         device: &B::Device,
-    ) -> Result<(Tensor<B, 4>, Tensor<B, 4>)> {
-        let [_, _, h, w] = input.shape().dims();
-        // If the size is different then we need to resize the input tensor
+    ) -> Result<(Tensor<B, 2>, Option<Tensor<B, 4>>)> {
+        // Squeeze the tensor on the 0 dimension
+        let x: Tensor<B, 4> = input.unsqueeze_dim(0);
+        let [_, _, h, w] = x.shape().dims();
+
+        // If the image size is different then we need to resize the input tensor
         let (interpolated_tensor, resize) = match h != img_size || w != img_size {
             true => {
-                let interpolatation = Interpolate1dConfig::new()
+                let interpolatation = Interpolate2dConfig::new()
                     .with_mode(InterpolateMode::Linear)
-                    .with_output_size(Some(img_size))
+                    .with_output_size(Some([img_size, img_size]))
                     .init();
 
-                (interpolatation.forward(input), true)
+                (interpolatation.forward(x), true)
             }
-            false => (input, false),
+            false => (x, false),
         };
 
-        // Image tensor usually have the component [C, H, W]
-        let unsqueeze_interpolate_tensor: Tensor<B, 4> = interpolated_tensor.unsqueeze();
-
         let (canonical_inverse_depth, fov_deg) = self.forward(
-            unsqueeze_interpolate_tensor,
+            interpolated_tensor,
             patch_encoder,
             image_encoder,
             fov_image_encoder,
@@ -102,12 +101,25 @@ impl<B: Backend> Brioche<B> {
             device,
         )?;
 
-        let mut deg_to_rad_handler = DegToRad {};
-        let fov_deg_to_rad = fov_deg.map(&mut deg_to_rad_handler) * 0.5;
+        let fov_deg_to_rad = fov_deg * PI / 180.;
+        let f_px = 0.5 * w as f32 / (fov_deg_to_rad * 0.5).tan();
 
-        let f_px = 0.5 * w as f32 / fov_deg_to_rad.tan();
+        let c: Vec<f32> = f_px.to_data().to_vec().unwrap();
+
+        ndarray_npy::write_npy(
+            "./fpx.npy",
+            &Array::from_shape_vec((1, 1, 1, 1), c).unwrap().into_dyn(),
+        )
+        .unwrap();
+
         let mut inverse_depth = canonical_inverse_depth * (w as f32 / f_px.clone());
-        let f_px_squeeze: Tensor<B, 4> = f_px.squeeze();
+
+        let mut f_px_squeeze = None;
+        if f_px.shape().dims() != [1, 1, 1, 1] {
+            f_px_squeeze = Some(f_px.squeeze());
+        }
+
+        dbg!("fpx squeeze");
 
         if resize {
             let inverse_depth_interpolate_fn = Interpolate2dConfig::new()
@@ -146,13 +158,25 @@ impl<B: Backend> Brioche<B> {
         device: &B::Device,
     ) -> Result<(Tensor<B, 4>, Tensor<B, 4>)> {
         let [_, _, h, w] = input.shape().dims();
-        if h != img_size * 4 || w != img_size * 4 {
+        if h != img_size || w != img_size {
             return Err(anyhow!("input image size does not match the expected size"));
         }
 
         let encodings =
             self.encoder
                 .forward(input.clone(), patch_encoder, image_encoder, device)?;
+
+        dbg!("encoder finish");
+
+        // let c: Vec<f32> = encodings.x_latent0_features.to_data().to_vec().unwrap();
+
+        // ndarray_npy::write_npy(
+        //     "./x_latent0_features.npy",
+        //     &Array::from_shape_vec((1, 256, 768, 768), c)
+        //         .unwrap()
+        //         .into_dyn(),
+        // )
+        // .unwrap();
 
         let (features, features_0) = self.decoder.forward(DecoderType::MultiResConv(vec![
             encodings.x_latent0_features,
@@ -162,6 +186,8 @@ impl<B: Backend> Brioche<B> {
             encodings.x_global_features,
         ]))?;
 
+        dbg!("decoder finished");
+
         let canonical_inverse_depth = self.head.forward(features);
         if features_0.is_none() {
             return Err(anyhow!("features_0 is None"));
@@ -169,7 +195,15 @@ impl<B: Backend> Brioche<B> {
 
         let fov_deg = self
             .fov
-            .forward(input, features_0.unwrap(), fov_image_encoder, &device)?;
+            .forward(
+                input,
+                features_0.unwrap().detach(),
+                fov_image_encoder,
+                &device,
+            )
+            .map_err(|err| anyhow!("Unable to perform forward on the fov: {err}"))?;
+
+        dbg!("fov done");
 
         Ok((canonical_inverse_depth, fov_deg))
     }

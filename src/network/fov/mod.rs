@@ -111,17 +111,14 @@ impl<B: Backend> Fov<B> {
                 let mut fov_encoder = fov_encoder;
                 let encoder_out = encoder.forward(interpolated_out, &device, &mut fov_encoder)?;
 
-                // For [:, 1:] slicing - get the shape first
-                let [batch, seq_len, hidden] = encoder_out.dims();
-
                 // Slice to remove first token (dimension 1, from index 1 onwards)
                 let sliced_out = encoder_out.slice([
-                    0..batch,   // All batches
-                    1..seq_len, // From index 1 to end
-                    0..hidden,  // All hidden dimensions
+                    0.., // All batches
+                    1.., // From index 1 to end
+                    0.., // All hidden dimensions
                 ]);
 
-                let permuted = sliced_out.swap_dims(1, 2);
+                let permuted = sliced_out.permute([0, 2, 1]);
 
                 let processed_x = match self.downsample {
                     Some(ref downsample) => {
@@ -236,12 +233,10 @@ mod tests {
 
         let mut fov = create_fov_model_with_weight();
 
-        let res = fov.forward(x, low_res, fov_encoder, &device);
-        assert!(res.is_ok());
+        let res = fov.forward(x, low_res.detach(), fov_encoder, &device);
 
         // @TODO test value, so far quite far i don't really know why
         let res = res.unwrap();
         println!("Final output: {}", res);
-        println!("Final output mean: {:?}", res.mean());
     }
 }
