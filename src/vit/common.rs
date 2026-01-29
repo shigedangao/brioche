@@ -1,4 +1,5 @@
 use super::{VitOps, VitResult, utils};
+use crate::MixedFloats;
 use anyhow::{Result, anyhow};
 use burn::tensor::Transaction;
 use burn::{Tensor, prelude::Backend};
@@ -40,14 +41,14 @@ impl VitOps for CommonVitModel {
     /// # Arguments
     /// * `input` - Input data.
     /// * `device` - Device to use for inference.
-    fn forward<B: Backend>(
+    fn forward<B: Backend, F: MixedFloats>(
         &mut self,
         input: Tensor<B, 4>,
         device: &B::Device,
     ) -> Result<VitResult<B>> {
         let tensor_data = Transaction::default().register(input).execute();
 
-        let data: Vec<f32> = match tensor_data.first() {
+        let data: Vec<_> = match tensor_data.first() {
             Some(d) => d.to_vec().map_err(|err| {
                 anyhow!("Unable to convert the tensor to a vector due to {:?}", err)
             })?,
@@ -59,10 +60,10 @@ impl VitOps for CommonVitModel {
             }
         };
 
-        let tensor: OrtTensor<f32> = OrtTensor::from_array(([1, 3, 384, 384], data))?;
+        let tensor: OrtTensor<F> = OrtTensor::from_array(([1, 3, 384, 384], data))?;
         let output = self.model.run(ort::inputs!["x" => tensor])?;
 
-        let tensor = utils::get_burn_tensor_from_ort(&output, "tokens", device)?;
+        let tensor = utils::get_burn_tensor_from_ort::<B, 3, F>(&output, "tokens", device)?;
 
         Ok(VitResult {
             tensor,

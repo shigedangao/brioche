@@ -1,3 +1,4 @@
+use crate::MixedFloats;
 use crate::vit::{VitOps, common::CommonVitModel};
 use anyhow::Result;
 use burn::{
@@ -37,13 +38,13 @@ impl<B: Backend> SequentialFovNetworkEncoder<B> {
     /// * `input` - The input tensor.
     /// * `device` - The device to use.
     /// * `encoder` - The CommonVitModel encoder.
-    pub fn forward(
+    pub fn forward<F: MixedFloats>(
         &mut self,
         input: Tensor<B, 4>,
         device: &B::Device,
         encoder: &mut CommonVitModel,
     ) -> Result<Tensor<B, 3>> {
-        let encoded = encoder.forward(input, device)?;
+        let encoded = encoder.forward::<B, F>(input, device)?;
 
         let output = self.linear.forward(encoded.tensor);
 

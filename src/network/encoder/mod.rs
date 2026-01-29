@@ -1,3 +1,4 @@
+use crate::MixedFloats;
 use crate::network::{Network, NetworkConfig};
 use crate::vit::{VitOps, common::CommonVitModel, patch::PatchVitModel};
 use anyhow::{Result, anyhow};
@@ -297,7 +298,7 @@ impl<B: Backend> Encoder<B> {
     /// * `batch_size` - The batch size.
     /// * `padding` - The padding.
     /// * `device` - The device.
-    pub fn forward(
+    pub fn forward<F: MixedFloats>(
         &self,
         input: Tensor<B, 4>,
         mut patch_encoder: PatchVitModel,
@@ -310,7 +311,7 @@ impl<B: Backend> Encoder<B> {
 
         // Step 0: create a 3-level image pyramid.
         // x2_patches -> 1x1 # 384x384 at the lowest resolution (384x384).
-        let (x0, x1, x2_patches) = self.create_pyramid(input.clone());
+        let (x0, x1, x2_patches) = self.create_pyramid(input);
 
         // Step 1: split to create batched overlapped mini-images at the backbone (BeiT/ViT/Dino)
         // resolution.
@@ -329,14 +330,15 @@ impl<B: Backend> Encoder<B> {
 
         // Step 2: Run the backbone (BeiT) model and get the result of large batch size.
         let (x_pyramid_encoding, bb_highres_hook0, bb_highres_hook1) = patch_encoder
-            .forward(x_pyramid_patches, device)
+            .forward::<B, F>(x_pyramid_patches, device)
             .and_then(|x| {
                 Ok((
                     self.reshape_feature(x.tensor, self.out_size, self.out_size),
                     x.hooks0,
                     x.hooks1,
                 ))
-            })?;
+            })
+            .map_err(|err| anyhow!("patch encoder fails due to: {err}"))?;
 
         if bb_highres_hook0.is_none() || bb_highres_hook1.is_none() {
             return Err(anyhow!("Highres hooks are missing"));
@@ -382,7 +384,7 @@ impl<B: Backend> Encoder<B> {
 
         // Apply the image encoder model.
         let x_global_features = image_encoder
-            .forward(x2_patches, device)
+            .forward::<_, F>(x2_patches, device)
             .map(|res| self.reshape_feature(res.tensor, self.out_size, self.out_size))?;
 
         // Upsample feature maps.
@@ -465,7 +467,7 @@ mod tests {
 
         let encoder = create_encoder_with_weight();
         let res = encoder
-            .forward(x, patch_encoder, image_encoder, &device)
+            .forward::<f32>(x, patch_encoder, image_encoder, &device)
             .unwrap();
 
         assert_eq!(res.x_latent0_features.shape().dims(), [1, 256, 768, 768]);

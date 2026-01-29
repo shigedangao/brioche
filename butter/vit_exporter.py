@@ -162,12 +162,6 @@ def create_minimal_vit_to_onnx() -> nn.Module:
         "vit_large_patch14_dinov2", pretrained=True, dynamic_img_size=True
     )
 
-    # kill classifier head just in case
-    # if hasattr(vit, "reset_classifier"):
-    #    vit.reset_classifier(0)
-    # elif hasattr(vit, "head"):
-    #    vit.head = nn.Identity()
-
     vit_model = nn.Module()
     vit_model.hooks = config["encoder_feature_layer_ids"]
     vit_model.model = vit
