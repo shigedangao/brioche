@@ -26,7 +26,6 @@ pub fn preprocess_image<B: Backend>(
     device: &B::Device,
     is_half_precision: bool,
 ) -> Result<Tensor<B, 3>> {
-    // Convert the image to rgb if needed
     let rgb_img = img.to_rgb32f();
     let (width, height) = rgb_img.dimensions();
 

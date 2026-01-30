@@ -94,7 +94,7 @@ class PatchEncoder(nn.Module):
         self.hook1 = output
 
 
-# --- Provided by depth-pro (yours, unchanged) ---
+# --- Provided by depth-pro ---
 def resize_patch_embed(model: nn.Module, new_patch_size=(16, 16)) -> nn.Module:
     if hasattr(model, "patch_embed"):
         old_patch_size = model.patch_embed.patch_size
@@ -178,12 +178,11 @@ def create_minimal_vit_to_onnx() -> nn.Module:
     return model
 
 
-# Create a bare ViT model suitable for DepthPro after resizing the patch embedding and position embeddings
-base_model = create_minimal_vit_to_onnx()
-
 # Create a dummy DepthPro model wrapping the ViT encoder for ONNX export
 model = DummyDepthProModel(
-    fov_encoder=base_model, patch_encoder=base_model, image_encoder=base_model
+    fov_encoder=create_minimal_vit_to_onnx(),
+    patch_encoder=create_minimal_vit_to_onnx(),
+    image_encoder=create_minimal_vit_to_onnx(),
 ).to("cpu")
 
 # Import the weight for the ViT encoder into the DepthPro model (.pt file)
@@ -192,8 +191,23 @@ state_dict = torch.load(
     map_location="cpu",
 )
 
+remapped_state = {}
+for key, value in state_dict.items():
+    if key.startswith("encoder.patch_encoder."):
+        # encoder.patch_encoder.X -> patch_encoder.encoder.X
+        new_key = key.replace("encoder.patch_encoder.", "patch_encoder.encoder.")
+        remapped_state[new_key] = value
+    elif key.startswith("encoder.image_encoder."):
+        # encoder.image_encoder.X -> image_encoder.encoder.X
+        new_key = key.replace("encoder.image_encoder.", "image_encoder.encoder.")
+        remapped_state[new_key] = value
+    elif key.startswith("fov.encoder."):
+        # fov.encoder.X -> fov.encoder.X (should match)
+        new_key = key.replace("fov.encoder.", "fov.encoder.")
+        remapped_state[new_key] = value
+
 # Load the weights into the model
-model.load_state_dict(state_dict, strict=False)
+model.load_state_dict(remapped_state, strict=False)
 
 # choose a dummy input tensor but which match the ViT encoder (fov, patch_encoder, image_encoder) that will be export to onnx
 dummy = torch.randn(1, 3, 384, 384)

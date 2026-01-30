@@ -1,3 +1,4 @@
+use crate::MixedFloats;
 use anyhow::{Result, anyhow};
 use burn::{
     Tensor,
@@ -5,8 +6,6 @@ use burn::{
     tensor::{Shape as BurnShape, TensorData},
 };
 use ort::tensor::Shape;
-
-use crate::MixedFloats;
 
 pub mod common;
 pub mod patch;
