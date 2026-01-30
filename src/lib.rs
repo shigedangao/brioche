@@ -1,6 +1,4 @@
 #![recursion_limit = "256"]
-use std::f32::consts::PI;
-
 use crate::network::decoder::multires_conv::{MultiResConv, MultiResDecoderConfig};
 use crate::network::decoder::{Decoder, DecoderType};
 use crate::network::encoder::{Encoder, EncoderConfig};
@@ -16,6 +14,7 @@ use burn::nn::interpolate::{Interpolate2dConfig, InterpolateMode};
 use burn::prelude::{Backend, Module};
 use burn::tensor::f16;
 use ort::tensor::PrimitiveTensorElementType;
+use std::f32::consts::PI;
 
 mod brioche_seq;
 pub mod four;
@@ -165,6 +164,8 @@ impl<B: Backend> Brioche<B> {
             return Err(anyhow!("input image size does not match the expected size"));
         }
 
+        dbg!("performing encoder");
+
         let encodings =
             self.encoder
                 .forward::<F>(input.clone(), patch_encoder, image_encoder, device)?;
@@ -185,6 +186,8 @@ impl<B: Backend> Brioche<B> {
         if features_0.is_none() {
             return Err(anyhow!("features_0 is None"));
         }
+
+        dbg!("head forward done");
 
         let fov_deg = self
             .fov

@@ -3,8 +3,11 @@ use crate::MixedFloats;
 use anyhow::{Result, anyhow};
 use burn::tensor::Transaction;
 use burn::{Tensor, prelude::Backend};
-use ort::session::{Session, builder::GraphOptimizationLevel};
-use ort::value::Tensor as OrtTensor;
+use ort::{
+    ep,
+    session::{Session, builder::GraphOptimizationLevel},
+    value::Tensor as OrtTensor,
+};
 use std::path::PathBuf;
 
 /// CommonVitModel represents a Vision Transformer (ViT) model for feature extraction that is being used by Depth-pro
@@ -26,6 +29,10 @@ impl CommonVitModel {
     /// * `thread_nb` - Number of threads to use for inference.
     pub fn new(model_path: PathBuf, thread_nb: usize) -> Result<Self> {
         let model = Session::builder()?
+            .with_execution_providers([
+                // Prefer coreml for apple devices
+                ep::CoreML::default().build(),
+            ])?
             .with_optimization_level(GraphOptimizationLevel::All)?
             .with_intra_threads(thread_nb)?
             .commit_from_file(model_path)?;

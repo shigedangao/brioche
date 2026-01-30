@@ -139,6 +139,7 @@ impl<B: Backend> Network<B> for Encoder<B> {
         )
         .with_stride([1, 1])
         .with_padding(PaddingConfig2d::Explicit(0, 0))
+        .with_bias(true)
         .init::<B>(device);
 
         Ok(Self {
@@ -246,7 +247,7 @@ impl<B: Backend> Encoder<B> {
     /// * `padding` - The padding.
     fn merge(
         &self,
-        input: Tensor<B, 4>,
+        input: &Tensor<B, 4>,
         batch_size: usize,
         padding: usize,
     ) -> Result<Tensor<B, 4>> {
@@ -354,7 +355,7 @@ impl<B: Backend> Encoder<B> {
 
         // Using target_batch_size.min(w0) for width in order not to exceed the batch size
         let x0_latent_features = self.merge(
-            x_latent0_encodings.slice([0..target_batch_size.min(x0), 0..c0, 0..h0, 0..w0]),
+            &x_latent0_encodings.slice([0..target_batch_size.min(x0), 0..c0, 0..h0, 0..w0]),
             batch_size,
             3,
         )?;
@@ -364,7 +365,7 @@ impl<B: Backend> Encoder<B> {
             self.reshape_feature(bb_highres_hook1.unwrap(), self.out_size, self.out_size);
         let [x1, c1, h1, w1] = x_latent1_encodings.shape().dims();
         let x1_latent_features = self.merge(
-            x_latent1_encodings.slice([0..target_batch_size.min(x1), 0..c1, 0..h1, 0..w1]),
+            &x_latent1_encodings.slice([0..target_batch_size.min(x1), 0..c1, 0..h1, 0..w1]),
             batch_size,
             3,
         )?;
@@ -376,9 +377,9 @@ impl<B: Backend> Encoder<B> {
         };
 
         // 96x96 feature maps by merging 5x5 @ 24x24 patches with overlaps.
-        let x0_features = self.merge(x0_encodings.clone(), batch_size, 3)?;
+        let x0_features = self.merge(x0_encodings, batch_size, 3)?;
         //  48x84 feature maps by merging 3x3 @ 24x24 patches with overlaps.
-        let x1_features = self.merge(x1_encodings.clone(), batch_size, 6)?;
+        let x1_features = self.merge(x1_encodings, batch_size, 6)?;
         // 24x24 feature maps.
         let x2_features = x2_encodings.clone();
 

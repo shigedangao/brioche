@@ -121,6 +121,8 @@ impl<B: Backend> Four<B> {
         let input = utils::preprocess_image::<B>(&img, &self.device, is_half_precision)
             .map_err(|err| anyhow!("Unable to preprocess the image due to {err}"))?;
 
+        dbg!("input tensor generation done");
+
         let (depth, _focallength_px) = self.model.infer::<F>(
             input,
             self.patch_model,
