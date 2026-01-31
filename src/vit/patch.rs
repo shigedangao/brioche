@@ -22,6 +22,10 @@ impl PatchVitModel {
             .with_execution_providers([
                 // Prefer coreml for apple devices
                 ep::CoreML::default().build(),
+                // Prefer cuda for gpu devices
+                ep::CUDA::default().build(),
+                // Prefer directml for windows devices
+                ep::DirectML::default().build(),
             ])?
             .with_optimization_level(GraphOptimizationLevel::All)?
             .with_intra_threads(thread_nb)?

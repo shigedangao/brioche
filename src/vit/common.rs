@@ -1,7 +1,6 @@
 use super::{VitOps, VitResult, utils};
 use crate::MixedFloats;
 use anyhow::{Result, anyhow};
-use burn::tensor::Transaction;
 use burn::{Tensor, prelude::Backend};
 use ort::{
     ep,
@@ -32,6 +31,10 @@ impl CommonVitModel {
             .with_execution_providers([
                 // Prefer coreml for apple devices
                 ep::CoreML::default().build(),
+                // Prefer cuda for gpu devices
+                ep::CUDA::default().build(),
+                // Prefer directml for windows devices
+                ep::DirectML::default().build(),
             ])?
             .with_optimization_level(GraphOptimizationLevel::All)?
             .with_intra_threads(thread_nb)?
@@ -53,19 +56,11 @@ impl VitOps for CommonVitModel {
         input: Tensor<B, 4>,
         device: &B::Device,
     ) -> Result<VitResult<B>> {
-        let tensor_data = Transaction::default().register(input).execute();
-
-        let data: Vec<_> = match tensor_data.first() {
-            Some(d) => d.to_vec().map_err(|err| {
-                anyhow!("Unable to convert the tensor to a vector due to {:?}", err)
-            })?,
-            None => {
-                return Err(anyhow!(
-                    "Unable to convert the tensor to a vector due to {:?}",
-                    tensor_data
-                ));
-            }
-        };
+        // /!\ Some overhead happened when performing this operation for the FOV tensor.
+        let data: Vec<F> = input
+            .to_data()
+            .to_vec()
+            .map_err(|err| anyhow!("Unable to convert the tensor to a vector due to {:?}", err))?;
 
         let tensor: OrtTensor<F> = OrtTensor::from_array(([1, 3, 384, 384], data))?;
         let output = self.model.run(ort::inputs!["x" => tensor])?;

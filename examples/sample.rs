@@ -14,7 +14,7 @@ fn main() {
         "./butter/onnx_model/depthpro_vit_fov_f16.onnx",
         "./butter/onnx_model/depthpro_vit_patch_f16.onnx",
         "./butter/onnx_model/depthpro_vit_image_f16.onnx",
-        3,
+        4,
         "./butter/weights/fov_only.pt",
         "./butter/weights/encoder_only.pt",
         "./butter/weights/decoder_only.pt",
@@ -24,8 +24,15 @@ fn main() {
 
     println!("model initialized at {:?}", t.elapsed());
 
-    four.run::<_, f16>("./input.jpg", true)
+    let (img_buffer, focallength_px) = four
+        .run::<_, f16>("./input.jpg", true)
         .expect("Expect to have generate the image");
+
+    img_buffer
+        .save("test.jpg")
+        .expect("Expect to save the image");
+
+    dbg!(focallength_px);
 
     println!("Image has been generated in {:?}", t.elapsed());
 }

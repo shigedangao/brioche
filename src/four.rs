@@ -4,12 +4,13 @@ use crate::network::decoder::multires_conv::MultiResDecoderConfig;
 use crate::network::encoder::EncoderConfig;
 use crate::network::fov::FovConfig;
 use crate::utils;
-use crate::vit::common::CommonVitModel;
-use crate::vit::patch::PatchVitModel;
+use crate::vit::{common::CommonVitModel, patch::PatchVitModel};
 use crate::{Brioche, network::Network};
 use anyhow::{Result, anyhow};
-use burn::prelude::Backend;
-use burn::tensor::Transaction;
+use burn::{
+    prelude::Backend,
+    tensor::{Tensor, Transaction},
+};
 use image::{ImageBuffer, Rgb};
 use ndarray::{Array, Array2};
 use ndarray_stats::QuantileExt;
@@ -115,7 +116,7 @@ impl<B: Backend> Four<B> {
         mut self,
         image_path: S,
         is_half_precision: bool,
-    ) -> Result<()> {
+    ) -> Result<(ImageBuffer<Rgb<u8>, Vec<u8>>, Option<Tensor<B, 4>>)> {
         let img = image::open(PathBuf::from(image_path.as_ref()))
             .map_err(|err| anyhow!("Unable to load the image due to {err}"))?;
         let input = utils::preprocess_image::<B>(&img, &self.device, is_half_precision)
@@ -123,7 +124,7 @@ impl<B: Backend> Four<B> {
 
         dbg!("input tensor generation done");
 
-        let (depth, _focallength_px) = self.model.infer::<F>(
+        let (depth, focallength_px) = self.model.infer::<F>(
             input,
             self.patch_model,
             self.image_model,
@@ -189,8 +190,6 @@ impl<B: Backend> Four<B> {
         let img_buffer: ImageBuffer<Rgb<u8>, Vec<u8>> =
             ImageBuffer::from_raw(width as u32, height as u32, raw_vec).unwrap();
 
-        img_buffer.save("test.jpg")?;
-
-        Ok(())
+        Ok((img_buffer, focallength_px))
     }
 }

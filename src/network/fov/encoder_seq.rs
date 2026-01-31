@@ -45,7 +45,6 @@ impl<B: Backend> SequentialFovNetworkEncoder<B> {
         encoder: &mut CommonVitModel,
     ) -> Result<Tensor<B, 3>> {
         let encoded = encoder.forward::<B, F>(input, device)?;
-
         let output = self.linear.forward(encoded.tensor);
 
         Ok(output)

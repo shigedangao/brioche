@@ -4,11 +4,11 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-ndarray = { version = "0.17.1", features = ["blas"] }
+ndarray = { version = "0.17.2" }
 ndarray-stats = "0.7.0"
 burn = { version = "~0.20", features = ["std", "metal", "fusion", "record-item-custom-serde"], default-features = false }
 anyhow = "1.0.100"
-ort = { version = "=2.0.0-rc.11", features = ["half", "coreml" ] }
+ort = { version = "=2.0.0-rc.11", features = ["half", "coreml", "cuda", "directml" ] }
 burn-import = { version = "~0.20", features = ["pytorch"] }
 image = "0.25.9"
 colorgrad = { version = "0.8.0", features = ["preset"] }
