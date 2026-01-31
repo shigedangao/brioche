@@ -6,3 +6,5 @@ testdata/.DS_Store
 .DS_Store
 *.onnx*
 testdata
+onnx_model
+weights

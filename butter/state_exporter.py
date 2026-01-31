@@ -1,19 +1,19 @@
 import argparse
+import os
 
 import torch
 
 parser = argparse.ArgumentParser(description="Export state of the depth pro model")
-parser.add_argument("--fov", type=bool, required=False)
-parser.add_argument("--encoder", type=bool, required=False)
-parser.add_argument("--decoder", type=bool, required=False)
-parser.add_argument("--head", type=bool, required=False)
+parser.add_argument("--fov", action=argparse.BooleanOptionalAction)
+parser.add_argument("--encoder", action=argparse.BooleanOptionalAction)
+parser.add_argument("--decoder", action=argparse.BooleanOptionalAction)
+parser.add_argument("--head", action=argparse.BooleanOptionalAction)
+parser.add_argument("--checkpoint-path", type=str, required=True)
 
 args = parser.parse_args()
 
 # Load the pt file and re-export the field that is needed
-checkpoint = torch.load(
-    "/Users/marcintha/workspace/ml-depth-pro/checkpoints/depth_pro.pt"
-)
+checkpoint = torch.load(args.checkpoint_path)
 
 if "state_dict" in checkpoint:
     state = checkpoint["state_dict"]
@@ -133,4 +133,7 @@ elif args.head:
 
 filtered_fov_state = {rename_keys[k]: v for k, v in state.items() if k in rename_keys}
 
-torch.save(filtered_fov_state, export_name)
+if not os.path.exists("./weights"):
+    os.makedirs("./weights")
+
+torch.save(filtered_fov_state, f"./weights/{export_name}")
