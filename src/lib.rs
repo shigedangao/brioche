@@ -1,10 +1,12 @@
 #![recursion_limit = "256"]
-use crate::network::decoder::multires_conv::{MultiResConv, MultiResDecoderConfig};
-use crate::network::decoder::{Decoder, DecoderType};
+use crate::model::{fov_model::Model as FovModel, image_model::Model as ImageModel};
+use crate::network::decoder::{
+    Decoder, DecoderType,
+    multires_conv::{MultiResConv, MultiResDecoderConfig},
+};
 use crate::network::encoder::{Encoder, EncoderConfig};
 use crate::network::fov::{Fov, FovConfig};
 use crate::network::{Network, NetworkConfig};
-use crate::vit::common::CommonVitModel;
 use crate::vit::patch::PatchVitModel;
 use anyhow::{Result, anyhow};
 use brioche_seq::{BriocheHeadConfig, BriocheSeq};
@@ -12,12 +14,13 @@ use burn::Tensor;
 use burn::backend::wgpu::FloatElement;
 use burn::nn::interpolate::{Interpolate2dConfig, InterpolateMode};
 use burn::prelude::{Backend, Module};
-use burn::tensor::f16;
+use burn::tensor::{DType, f16};
 use ort::tensor::PrimitiveTensorElementType;
 use std::f32::consts::PI;
 
 mod brioche_seq;
 pub mod four;
+mod model;
 mod network;
 mod utils;
 mod vit;
@@ -79,8 +82,6 @@ impl<B: Backend> Brioche<B> {
         &mut self,
         input: Tensor<B, 3>,
         patch_encoder: PatchVitModel,
-        image_encoder: CommonVitModel,
-        fov_image_encoder: CommonVitModel,
         img_size: usize,
         device: &B::Device,
     ) -> Result<(Tensor<B, 2>, Option<Tensor<B, 4>>)> {
@@ -102,14 +103,7 @@ impl<B: Backend> Brioche<B> {
         };
 
         let (canonical_inverse_depth, fov_deg) = self
-            .forward::<F>(
-                interpolated_tensor,
-                patch_encoder,
-                image_encoder,
-                fov_image_encoder,
-                img_size,
-                device,
-            )
+            .forward::<F>(interpolated_tensor, patch_encoder, img_size, device)
             .map_err(|err| anyhow!("Unable to perform the forward of the model due to {err}"))?;
 
         let fov_deg_to_rad = fov_deg * PI / 180.;
@@ -132,7 +126,11 @@ impl<B: Backend> Brioche<B> {
             inverse_depth = inverse_depth_interpolate_fn.forward(inverse_depth);
         }
 
+        dbg!("resize done");
+
         let depth: Tensor<B, 4> = 1. / inverse_depth.clamp(CLAMP_MIN, CLAMP_MAX);
+
+        dbg!("clamp");
 
         Ok((depth.squeeze(), f_px_squeeze))
     }
@@ -154,8 +152,6 @@ impl<B: Backend> Brioche<B> {
         &mut self,
         input: Tensor<B, 4>,
         patch_encoder: PatchVitModel,
-        image_encoder: CommonVitModel,
-        fov_image_encoder: CommonVitModel,
         img_size: usize,
         device: &B::Device,
     ) -> Result<(Tensor<B, 4>, Tensor<B, 4>)> {
@@ -166,9 +162,12 @@ impl<B: Backend> Brioche<B> {
 
         dbg!("performing encoder");
 
-        let encodings =
-            self.encoder
-                .forward::<F>(input.clone(), patch_encoder, image_encoder, device)?;
+        let encodings = self.encoder.forward::<F>(
+            input.clone(),
+            patch_encoder,
+            ImageModel::new(device),
+            device,
+        )?;
 
         dbg!("encoder finish");
 
@@ -189,13 +188,18 @@ impl<B: Backend> Brioche<B> {
 
         dbg!("head forward done");
 
+        let is_half = match input.dtype() {
+            DType::F16 => true,
+            _ => false,
+        };
+
         let fov_deg = self
             .fov
             .forward::<F>(
                 input,
                 features_0.unwrap().detach(),
-                fov_image_encoder,
-                &device,
+                is_half,
+                FovModel::new(device),
             )
             .map_err(|err| anyhow!("Unable to perform forward on the fov: {err}"))?;
 

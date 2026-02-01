@@ -1,9 +1,7 @@
 #![recursion_limit = "256"]
-use std::time::Instant;
-
 use brioche::four::Four;
 use burn::backend::Metal;
-use burn::tensor::f16;
+use std::time::Instant;
 
 fn main() {
     let t = Instant::now();
@@ -11,10 +9,8 @@ fn main() {
     println!("Running sample of loaf 🍞");
     //let device = Default::default();
     let four = Four::<Metal>::new(
-        "./butter/onnx_model/depthpro_vit_fov_f16.onnx",
-        "./butter/onnx_model/depthpro_vit_patch_f16.onnx",
-        "./butter/onnx_model/depthpro_vit_image_f16.onnx",
-        4,
+        "./butter/onnx_model/depthpro_vit_patch.onnx",
+        6,
         "./butter/weights/fov_only.pt",
         "./butter/weights/encoder_only.pt",
         "./butter/weights/decoder_only.pt",
@@ -25,7 +21,7 @@ fn main() {
     println!("model initialized at {:?}", t.elapsed());
 
     let (img_buffer, focallength_px) = four
-        .run::<_, f16>("./input.jpg", true)
+        .run::<_, f32>("./input.jpg", false)
         .expect("Expect to have generate the image");
 
     img_buffer

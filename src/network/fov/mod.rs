@@ -1,5 +1,5 @@
 use super::{Network, NetworkConfig};
-use crate::{MixedFloats, vit::common::CommonVitModel};
+use crate::{MixedFloats, model::fov_model::Model};
 use anyhow::{Result, anyhow};
 use burn::{
     Tensor,
@@ -94,8 +94,8 @@ impl<B: Backend> Fov<B> {
         &mut self,
         x: Tensor<B, 4>,
         lowres_feature: Tensor<B, 4>,
-        fov_encoder: CommonVitModel,
-        device: &B::Device,
+        _is_half: bool,
+        fov_encoder: Model<B>,
     ) -> Result<Tensor<B, 4>> {
         let out = match self.encoder {
             Some(ref mut encoder) => {
@@ -108,9 +108,7 @@ impl<B: Backend> Fov<B> {
                 let interpolated_out = interpolate.forward(x);
 
                 // Encode the interpolated features
-                let mut fov_encoder = fov_encoder;
-                let encoder_out =
-                    encoder.forward::<F>(interpolated_out, &device, &mut fov_encoder)?;
+                let encoder_out = encoder.forward::<F>(interpolated_out, fov_encoder)?;
 
                 // Slice to remove first token (dimension 1, from index 1 onwards)
                 let sliced_out = encoder_out.slice([
@@ -148,7 +146,6 @@ mod tests {
         tensor::{Distribution, Shape, TensorData},
     };
     use ndarray::Array4;
-    use std::path::PathBuf;
 
     fn create_fov_model_with_weight() -> Fov<Metal> {
         let device = Default::default();
@@ -162,10 +159,7 @@ mod tests {
             &device,
         )
         .unwrap()
-        .with_record(
-            "/Users/marcintha/workspace/brioche/butter/fov_only.pt",
-            &device,
-        );
+        .with_record("butter/weights/fov_only.pt", &device);
 
         fov
     }
@@ -173,14 +167,6 @@ mod tests {
     #[test]
     fn expect_fov_test_to_output_something() {
         let device = Default::default();
-
-        let fov_encoder = CommonVitModel::new(
-            PathBuf::from("/Users/marcintha/workspace/brioche/butter/depthpro_vit_fov.onnx"),
-            4,
-        );
-        assert!(fov_encoder.is_ok());
-
-        let fov_encoder = fov_encoder.unwrap();
 
         let mut fov = Fov::<Metal>::new(
             NetworkConfig::Fov(FovConfig {
@@ -204,7 +190,7 @@ mod tests {
             &device,
         );
 
-        let res = fov.forward::<f32>(x, lowres_feature, fov_encoder, &device);
+        let res = fov.forward::<f32>(x, lowres_feature, false, Model::new(&device));
         assert!(res.is_ok());
     }
 
@@ -226,15 +212,9 @@ mod tests {
         let low_res: Tensor<Metal, 4> =
             Tensor::from_data(TensorData::new(low_res_data, [1, 256, 48, 48]), &device);
 
-        let fov_encoder = CommonVitModel::new(
-            PathBuf::from("/Users/marcintha/workspace/brioche/butter/depthpro_vit_fov.onnx"),
-            4,
-        )
-        .unwrap();
-
         let mut fov = create_fov_model_with_weight();
 
-        let res = fov.forward::<f32>(x, low_res.detach(), fov_encoder, &device);
+        let res = fov.forward::<f32>(x, low_res.detach(), false, Model::new(&device));
 
         // @TODO test value, so far quite far i don't really know why
         let res = res.unwrap();

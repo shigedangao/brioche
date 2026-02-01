@@ -1,6 +1,7 @@
 use crate::MixedFloats;
+use crate::model::image_model::Model;
 use crate::network::{Network, NetworkConfig};
-use crate::vit::{VitOps, common::CommonVitModel, patch::PatchVitModel};
+use crate::vit::{VitOps, patch::PatchVitModel};
 use anyhow::{Result, anyhow};
 use burn::{
     Tensor,
@@ -303,7 +304,7 @@ impl<B: Backend> Encoder<B> {
         &self,
         input: Tensor<B, 4>,
         mut patch_encoder: PatchVitModel,
-        mut image_encoder: CommonVitModel,
+        image_encoder: Model<B>,
         device: &B::Device,
     ) -> Result<EncoderOutput<B>> {
         let Some(batch_size) = input.shape().first().copied() else {
@@ -384,9 +385,9 @@ impl<B: Backend> Encoder<B> {
         let x2_features = x2_encodings.clone();
 
         // Apply the image encoder model.
-        let x_global_features = image_encoder
-            .forward::<_, F>(x2_patches, device)
-            .map(|res| self.reshape_feature(res.tensor, self.out_size, self.out_size))?;
+        let x_global_features = image_encoder.forward(x2_patches);
+        let x_global_features =
+            self.reshape_feature(x_global_features, self.out_size, self.out_size);
 
         // Upsample feature maps.
         let x_latent0_features = self.upsample_latent0.forward(x0_latent_features);
@@ -416,6 +417,7 @@ impl<B: Backend> Encoder<B> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::model::image_model::Model;
     use burn::backend::Metal;
     use burn::tensor::TensorData;
     use ndarray::Array4;
@@ -433,10 +435,7 @@ mod tests {
 
         let encoder = Encoder::<Metal>::new(NetworkConfig::Encoder(encoder_config), &device)
             .unwrap()
-            .with_record(
-                "/Users/marcintha/workspace/brioche/butter/encoder_only.pt",
-                &device,
-            );
+            .with_record("butter/encoder_only.pt", &device);
 
         encoder
     }
@@ -445,19 +444,7 @@ mod tests {
     fn expect_encoder_to_generate_something() {
         let device = Default::default();
         // Create a patch encoder. The weight is loaded from the .onnx.data file automatically.
-        let patch_encoder = PatchVitModel::new(
-            "/Users/marcintha/workspace/brioche/butter/depthpro_vit_patch.onnx".into(),
-            4,
-        )
-        .unwrap();
-
-        // Create the image encoder as well
-        // @TODO change the input to take AsRef<path>
-        let image_encoder = CommonVitModel::new(
-            "/Users/marcintha/workspace/brioche/butter/depthpro_vit_image.onnx".into(),
-            4,
-        )
-        .unwrap();
+        let patch_encoder = PatchVitModel::new("butter/depthpro_vit_patch.onnx".into(), 4).unwrap();
 
         // Create x
         let x_matrix: Array4<f32> =
@@ -468,7 +455,7 @@ mod tests {
 
         let encoder = create_encoder_with_weight();
         let res = encoder
-            .forward::<f32>(x, patch_encoder, image_encoder, &device)
+            .forward::<f32>(x, patch_encoder, Model::new(&device), &device)
             .unwrap();
 
         assert_eq!(res.x_latent0_features.shape().dims(), [1, 256, 768, 768]);
