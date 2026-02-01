@@ -5,7 +5,6 @@ use burn::Tensor;
 use burn::prelude::Backend;
 use burn::tensor::Transaction;
 use ort::{
-    ep,
     session::{Session, builder::GraphOptimizationLevel},
     value::Tensor as OrtTensor,
 };
@@ -19,14 +18,6 @@ pub struct PatchVitModel {
 impl PatchVitModel {
     pub fn new(model_path: PathBuf, thread_nb: usize) -> Result<Self> {
         let model = Session::builder()?
-            .with_execution_providers([
-                // Prefer coreml for apple devices
-                ep::CoreML::default().build(),
-                // Prefer cuda for gpu devices
-                ep::CUDA::default().build(),
-                // Prefer directml for windows devices
-                ep::DirectML::default().build(),
-            ])?
             .with_optimization_level(GraphOptimizationLevel::All)?
             .with_intra_threads(thread_nb)?
             .commit_from_file(model_path)?;

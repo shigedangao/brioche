@@ -1,6 +1,7 @@
 import argparse
 import os
 
+import onnx
 import timm
 import torch
 import torch.nn as nn
@@ -100,18 +101,18 @@ dummy = torch.randn(1, 3, 384, 384)
 
 # Either fov or patch_encoder or image_encoder
 export_model = model.fov.encoder
-file_name = "depthpro_vit_fov.onnx"
+file_name = "depthpro_vit_fov"
 output_names = ["tokens"]
 
 if args.patch:
     export_model = model.patch_encoder
-    file_name = "depthpro_vit_patch.onnx"
+    file_name = "depthpro_vit_patch"
     output_names = ["final_output", "hooks0", "hooks1"]
     # override the tensor shape to match the patch encoder input shape
     dummy = torch.randn(35, 3, 384, 384)
 elif args.image:
     export_model = model.image_encoder.encoder
-    file_name = "depthpro_vit_image.onnx"
+    file_name = "depthpro_vit_image"
 
 if not os.path.exists("./onnx_model"):
     os.makedirs("./onnx_model")
@@ -119,10 +120,17 @@ if not os.path.exists("./onnx_model"):
 torch.onnx.export(
     export_model,
     dummy,
-    f"./onnx_model/{file_name}",
+    f"./onnx_model/{file_name}.onnx",
     opset_version=21,
     input_names=["x"],
     output_names=output_names,
     dynamo=True,
     dynamic_shapes={"x": {0: Dim("batch", min=1)}},
+)
+
+m = onnx.load(f"./onnx_model/{file_name}.onnx")
+onnx.save_model(
+    m,
+    f"./onnx_model/{file_name}.onnx",
+    save_as_external_data=False,
 )

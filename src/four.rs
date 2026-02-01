@@ -4,16 +4,13 @@ use crate::network::decoder::multires_conv::MultiResDecoderConfig;
 use crate::network::encoder::EncoderConfig;
 use crate::network::fov::FovConfig;
 use crate::utils;
-use crate::vit::{common::CommonVitModel, patch::PatchVitModel};
+use crate::vit::patch::PatchVitModel;
 use crate::{Brioche, network::Network};
 use anyhow::{Result, anyhow};
-use burn::{
-    prelude::Backend,
-    tensor::{Tensor, Transaction},
-};
+use burn::tensor::Transaction;
+use burn::{prelude::Backend, tensor::Tensor};
 use image::{ImageBuffer, Rgb};
 use ndarray::{Array, Array2};
-use ndarray_stats::QuantileExt;
 use std::path::PathBuf;
 
 // Constants
@@ -26,8 +23,6 @@ const ENCODER_IMG_SIZE: usize = 384 * 4;
 /// Runner is a struct which helps to run the depth-pro model
 pub struct Four<B: Backend> {
     model: Brioche<B>,
-    image_model: CommonVitModel,
-    fov_model: CommonVitModel,
     patch_model: PatchVitModel,
     device: B::Device,
 }
@@ -42,25 +37,16 @@ impl<B: Backend> Four<B> {
     /// * `vit_thread_nb` - Number of threads to use for vit models
     /// * `device` - Device to use for the model
     pub fn new<S: AsRef<str>>(
-        fov_encoder_path: S,
         patch_vit_path: S,
-        image_vit_path: S,
         vit_thread_nb: usize,
         fov_weight_path: S,
         encoder_weight_path: S,
         decoder_weight_path: S,
         head_weight_path: S,
     ) -> Result<Self> {
-        let fov_model =
-            CommonVitModel::new(PathBuf::from(fov_encoder_path.as_ref()), vit_thread_nb)?;
-
         let patch_model =
             PatchVitModel::new(PathBuf::from(patch_vit_path.as_ref()), vit_thread_nb)?;
 
-        let image_model =
-            CommonVitModel::new(PathBuf::from(image_vit_path.as_ref()), vit_thread_nb)?;
-
-        // @TODO make it as a parameters if the model work...
         let encoder_config = EncoderConfig {
             dims_encoder: vec![256, 512, 1024, 1024],
             patch_encoder_embed_dim: EMBED_DIM,
@@ -104,8 +90,6 @@ impl<B: Backend> Four<B> {
 
         Ok(Self {
             model: bm,
-            fov_model,
-            image_model,
             patch_model,
             device,
         })
@@ -124,66 +108,62 @@ impl<B: Backend> Four<B> {
 
         dbg!("input tensor generation done");
 
-        let (depth, focallength_px) = self.model.infer::<F>(
-            input,
-            self.patch_model,
-            self.image_model,
-            self.fov_model,
-            ENCODER_IMG_SIZE,
-            &self.device,
-        )?;
+        let (depth, focallength_px) =
+            self.model
+                .infer::<F>(input, self.patch_model, ENCODER_IMG_SIZE, &self.device)?;
 
         let [h, w]: [usize; 2] = depth.shape().dims();
-        let tensor_data = Transaction::default().register(depth).execute();
+        let squeezed_depth: Tensor<B, 2> = depth.detach().squeeze();
 
-        let depth_tensor_data: Vec<f32> = match tensor_data.first() {
-            Some(d) => d.to_vec().map_err(|err| {
-                anyhow!("Unable to convert the tensor to a vector due to {:?}", err)
-            })?,
-            None => {
-                return Err(anyhow!(
-                    "Unable to convert the tensor to a vector due to {:?}",
-                    tensor_data
-                ));
-            }
+        dbg!("finish extract tensor");
+
+        let inverse_depth: Tensor<B, 2> = 1. / squeezed_depth;
+        let inverse_depth_min_tensor = inverse_depth.clone().min();
+        let inverse_depth_max_tensor = inverse_depth.clone().max();
+
+        let extracted_tensor = Transaction::default()
+            .register(inverse_depth_min_tensor)
+            .register(inverse_depth_max_tensor)
+            .execute()
+            .to_vec();
+
+        let Some(inverse_depth_min) = extracted_tensor
+            .get(0)
+            .and_then(|t| t.to_vec::<f32>().ok())
+            .and_then(|v| v.first().copied())
+        else {
+            return Err(anyhow!("Unable to get the inverse depth min"));
         };
 
-        // Use ndarray in order to perform the operation
-        let squeezed_depth = Array::from_shape_vec((h, w), depth_tensor_data)?
-            .into_dyn()
-            .squeeze();
-
-        let inverse_depth = 1. / squeezed_depth;
-        let inverse_depth_max = inverse_depth
-            .max()
-            .map_err(|err| anyhow!("Expect to get the max value from the tensor: {err}"))?;
-        let inverse_depth_min = inverse_depth
-            .min()
-            .map_err(|err| anyhow!("Expect to get the min value from the tensor: {err}"))?;
+        let Some(inverse_depth_max) = extracted_tensor
+            .get(1)
+            .and_then(|t| t.to_vec::<f32>().ok())
+            .and_then(|v| v.first().copied())
+        else {
+            return Err(anyhow!("Unable to get the inverse depth max"));
+        };
 
         // Visualize inverse depth instead of depth, clipped to [0.1m;250m] range for better visualization.
-        let max_invdepth_vizu = inverse_depth_max.min(1. / 0.1);
         let min_invdepth_vizu = inverse_depth_min.max(1. / 250.);
+        let max_invdepth_vizu = inverse_depth_max.min(1. / 0.1);
 
         let inverse_depth_normalized =
             (inverse_depth - min_invdepth_vizu) / (max_invdepth_vizu - min_invdepth_vizu);
 
         // Get the shape of the inverse_depth
-        let idn_shape = inverse_depth_normalized.shape();
-        if idn_shape.len() < 2 {
-            return Err(anyhow!("Expect final shape to be superior to 2"));
-        }
-        let (height, width) = (
-            idn_shape.first().copied().unwrap_or_default(),
-            idn_shape.get(1).copied().unwrap_or_default(),
-        );
+        let [height, width] = inverse_depth_normalized.shape().dims();
+
+        let inverse_depth_normalized_tensor = inverse_depth_normalized.clamp(0., 1.);
+        let inverse_depth_normalized = inverse_depth_normalized_tensor
+            .to_data()
+            .into_vec::<f32>()
+            .map(|v| Array::from_shape_vec((h, w), v))??;
 
         // Normalized the matrix to a defined shape of two (heigh, width).
-        let inverse_depth_normalized_normalized: Array2<f32> = inverse_depth_normalized
-            .map(|v| v.clamp(0., 1.0))
-            .into_shape_with_order((height, width))?;
+        let inverse_depth_normalized: Array2<f32> =
+            inverse_depth_normalized.into_shape_with_order((height, width))?;
 
-        let cmap_matrix = utils::cmap(&inverse_depth_normalized_normalized);
+        let cmap_matrix = utils::cmap(&inverse_depth_normalized);
         let cmap_matrix = utils::drop_alpha(cmap_matrix);
 
         let (raw_vec, _) = cmap_matrix.into_raw_vec_and_offset();

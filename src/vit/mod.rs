@@ -7,7 +7,6 @@ use burn::{
 };
 use ort::tensor::Shape;
 
-pub mod common;
 pub mod patch;
 
 #[derive(Debug)]
