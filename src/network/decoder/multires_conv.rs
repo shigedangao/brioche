@@ -173,6 +173,7 @@ impl<B: Backend> Decoder<B, 4> for MultiResConv<B> {
 }
 
 #[cfg(test)]
+#[cfg(feature = "metal")]
 mod tests {
     use crate::{Decoder, DecoderType};
     use burn::backend::Metal;

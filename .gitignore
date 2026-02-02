@@ -1,6 +1,7 @@
 /target
 butter/.venv
 butter/*.pt
+__pycache__
 _.DS_Store
 testdata/.DS_Store
 .DS_Store

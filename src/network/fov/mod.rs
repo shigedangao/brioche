@@ -139,6 +139,7 @@ impl<B: Backend> Fov<B> {
 }
 
 #[cfg(test)]
+#[cfg(feature = "metal")]
 mod tests {
     use super::*;
     use burn::{
