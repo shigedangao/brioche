@@ -415,6 +415,7 @@ impl<B: Backend> Encoder<B> {
 }
 
 #[cfg(test)]
+#[cfg(feature = "metal")]
 mod tests {
     use super::*;
     use crate::model::image_model::Model;
