@@ -9,3 +9,4 @@ testdata/.DS_Store
 testdata
 onnx_model
 weights
+runs/*
