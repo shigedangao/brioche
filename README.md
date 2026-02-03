@@ -5,7 +5,7 @@ Brioche is a Rust implementation of the [ml-depth-pro](https://github.com/apple/
 ## Output example below
 
 <p align="center">
-  <img src="input.jpg" width="45%" />
+  <img src="./assets/input.jpg" width="45%" />
   <img src="test.jpg" width="45%" />
 </p>
 
