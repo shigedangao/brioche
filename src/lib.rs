@@ -1,5 +1,4 @@
 #![recursion_limit = "256"]
-use crate::model::{fov_model::Model as FovModel, image_model::Model as ImageModel};
 use crate::network::decoder::{
     Decoder, DecoderType,
     multires_conv::{MultiResConv, MultiResDecoderConfig},
@@ -7,20 +6,19 @@ use crate::network::decoder::{
 use crate::network::encoder::{Encoder, EncoderConfig};
 use crate::network::fov::{Fov, FovConfig};
 use crate::network::{Network, NetworkConfig};
-use crate::vit::patch::PatchVitModel;
+use crate::vit::{common::CommonVitModel, patch::PatchVitModel};
 use anyhow::{Result, anyhow};
 use brioche_seq::{BriocheHeadConfig, BriocheSeq};
 use burn::Tensor;
 use burn::backend::wgpu::FloatElement;
 use burn::nn::interpolate::{Interpolate2dConfig, InterpolateMode};
 use burn::prelude::{Backend, Module};
-use burn::tensor::{DType, f16};
+use burn::tensor::f16;
 use ort::tensor::PrimitiveTensorElementType;
 use std::f32::consts::PI;
 
 mod brioche_seq;
 pub mod four;
-mod model;
 mod network;
 mod utils;
 mod vit;
@@ -80,30 +78,40 @@ impl<B: Backend> Brioche<B> {
     /// * `Tensor<B, 4>` - The field of view tensor.
     pub fn infer<F: MixedFloats>(
         &mut self,
-        input: Tensor<B, 3>,
+        inputs: (Tensor<B, 3>, Tensor<B, 3>),
         patch_encoder: PatchVitModel,
+        image_encoder: CommonVitModel,
         img_size: usize,
         device: &B::Device,
     ) -> Result<(Tensor<B, 2>, Option<Tensor<B, 4>>)> {
+        let (input, fov_x) = inputs;
+
         // Squeeze the tensor on the 0 dimension
         let x: Tensor<B, 4> = input.unsqueeze_dim(0);
+        // Perform the same squeeze on the fov input tensor
         let [_, _, h, w] = x.shape().dims();
 
         // If the image size is different then we need to resize the input tensor
         let (interpolated_tensor, resize) = match h != img_size || w != img_size {
             true => {
-                let interpolatation = Interpolate2dConfig::new()
+                let interpolation = Interpolate2dConfig::new()
                     .with_mode(InterpolateMode::Linear)
                     .with_output_size(Some([img_size, img_size]))
                     .init();
 
-                (interpolatation.forward(x), true)
+                (interpolation.forward(x), true)
             }
             false => (x, false),
         };
 
         let (canonical_inverse_depth, fov_deg) = self
-            .forward::<F>(interpolated_tensor, patch_encoder, img_size, device)
+            .forward::<F>(
+                (interpolated_tensor, fov_x),
+                patch_encoder,
+                image_encoder,
+                img_size,
+                device,
+            )
             .map_err(|err| anyhow!("Unable to perform the forward of the model due to {err}"))?;
 
         let fov_deg_to_rad = fov_deg * PI / 180.;
@@ -150,11 +158,14 @@ impl<B: Backend> Brioche<B> {
     /// * `fov_deg` - Field of view angle tensor of shape [batch_size, channels, height, width].
     pub fn forward<F: MixedFloats>(
         &mut self,
-        input: Tensor<B, 4>,
+        inputs: (Tensor<B, 4>, Tensor<B, 3>),
         patch_encoder: PatchVitModel,
+        image_encoder: CommonVitModel,
         img_size: usize,
         device: &B::Device,
     ) -> Result<(Tensor<B, 4>, Tensor<B, 4>)> {
+        let (input, fov_input) = inputs;
+
         let [_, _, h, w] = input.shape().dims();
         if h != img_size || w != img_size {
             return Err(anyhow!("input image size does not match the expected size"));
@@ -162,12 +173,9 @@ impl<B: Backend> Brioche<B> {
 
         dbg!("performing encoder");
 
-        let encodings = self.encoder.forward::<F>(
-            input.clone(),
-            patch_encoder,
-            ImageModel::new(device),
-            device,
-        )?;
+        let encodings =
+            self.encoder
+                .forward::<F>(input.clone(), patch_encoder, image_encoder, device)?;
 
         dbg!("encoder finish");
 
@@ -188,19 +196,9 @@ impl<B: Backend> Brioche<B> {
 
         dbg!("head forward done");
 
-        let is_half = match input.dtype() {
-            DType::F16 => true,
-            _ => false,
-        };
-
         let fov_deg = self
             .fov
-            .forward::<F>(
-                input,
-                features_0.unwrap().detach(),
-                is_half,
-                FovModel::new(device),
-            )
+            .forward::<F>(fov_input, features_0.unwrap())
             .map_err(|err| anyhow!("Unable to perform forward on the fov: {err}"))?;
 
         dbg!("fov done");

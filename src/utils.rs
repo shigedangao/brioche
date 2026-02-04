@@ -67,6 +67,14 @@ pub fn preprocess_image<B: Backend>(
     Ok(tensor)
 }
 
+pub fn rescale_image(img: &DynamicImage, encoder_base_size: u32) -> DynamicImage {
+    img.resize_exact(
+        encoder_base_size,
+        encoder_base_size,
+        image::imageops::FilterType::Lanczos3,
+    )
+}
+
 pub fn cmap(input: &Array2<f32>) -> Array3<u8> {
     let (h, w) = input.dim();
     // Create the turbo gradient domain [0..1]

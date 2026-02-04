@@ -4,6 +4,8 @@ use crate::network::decoder::multires_conv::MultiResDecoderConfig;
 use crate::network::encoder::EncoderConfig;
 use crate::network::fov::FovConfig;
 use crate::utils;
+use crate::vit::VitOps;
+use crate::vit::common::CommonVitModel;
 use crate::vit::patch::PatchVitModel;
 use crate::{Brioche, network::Network};
 use anyhow::{Result, anyhow};
@@ -11,6 +13,7 @@ use burn::tensor::Transaction;
 use burn::{prelude::Backend, tensor::Tensor};
 use image::{ImageBuffer, Rgb};
 use ndarray::{Array, Array2};
+use std::marker::PhantomData;
 use std::path::PathBuf;
 
 // Constants
@@ -19,15 +22,19 @@ const DIM_DECODER: usize = 256;
 const DIM_ENCODER: [usize; 4] = [256, 512, 1024, 1024];
 const EMBED_DIM: usize = 1024;
 const ENCODER_IMG_SIZE: usize = 384 * 4;
+const FOV_ENCODER_IMG_SIZE: usize = 384;
 
 /// Runner is a struct which helps to run the depth-pro model
-pub struct Four<B: Backend> {
+pub struct Four<B: Backend, C: Backend> {
     model: Brioche<B>,
     patch_model: PatchVitModel,
-    device: B::Device,
+    image_model: CommonVitModel,
+    fov_model: CommonVitModel,
+    gpu_device: B::Device,
+    cpu_device: PhantomData<C>,
 }
 
-impl<B: Backend> Four<B> {
+impl<B: Backend, C: Backend> Four<B, C> {
     /// Create a new four.
     ///
     /// # Arguments
@@ -38,6 +45,8 @@ impl<B: Backend> Four<B> {
     /// * `device` - Device to use for the model
     pub fn new<S: AsRef<str>>(
         patch_vit_path: S,
+        image_vit_path: S,
+        fov_vit_path: S,
         vit_thread_nb: usize,
         fov_weight_path: S,
         encoder_weight_path: S,
@@ -46,6 +55,11 @@ impl<B: Backend> Four<B> {
     ) -> Result<Self> {
         let patch_model =
             PatchVitModel::new(PathBuf::from(patch_vit_path.as_ref()), vit_thread_nb)?;
+
+        let image_model =
+            CommonVitModel::new(PathBuf::from(image_vit_path.as_ref()), vit_thread_nb)?;
+
+        let fov_model = CommonVitModel::new(PathBuf::from(fov_vit_path.as_ref()), vit_thread_nb)?;
 
         let encoder_config = EncoderConfig {
             dims_encoder: vec![256, 512, 1024, 1024],
@@ -71,7 +85,7 @@ impl<B: Backend> Four<B> {
             dim_decoder: DIM_DECODER,
         };
 
-        let device = Default::default();
+        let gpu_device = Default::default();
 
         // Create the brioche (depth-pro)model
         let mut bm = Brioche::<B>::new(
@@ -79,19 +93,22 @@ impl<B: Backend> Four<B> {
             decoder_config,
             fov_config,
             brioche_head_config,
-            &device,
+            &gpu_device,
         )?;
 
         // Set the weights on the property of the model.
-        bm.decoder = bm.decoder.with_record(decoder_weight_path, &device);
-        bm.encoder = bm.encoder.with_record(encoder_weight_path, &device);
-        bm.fov = bm.fov.with_record(fov_weight_path, &device);
-        bm.head = bm.head.with_record(head_weight_path, &device);
+        bm.decoder = bm.decoder.with_record(decoder_weight_path, &gpu_device);
+        bm.encoder = bm.encoder.with_record(encoder_weight_path, &gpu_device);
+        bm.fov = bm.fov.with_record(fov_weight_path, &gpu_device);
+        bm.head = bm.head.with_record(head_weight_path, &gpu_device);
 
         Ok(Self {
             model: bm,
             patch_model,
-            device,
+            image_model,
+            fov_model,
+            gpu_device,
+            cpu_device: PhantomData,
         })
     }
 
@@ -103,14 +120,33 @@ impl<B: Backend> Four<B> {
     ) -> Result<(ImageBuffer<Rgb<u8>, Vec<u8>>, Option<Tensor<B, 4>>)> {
         let img = image::open(PathBuf::from(image_path.as_ref()))
             .map_err(|err| anyhow!("Unable to load the image due to {err}"))?;
-        let input = utils::preprocess_image::<B>(&img, &self.device, is_half_precision)
+        let input = utils::preprocess_image::<B>(&img, &self.gpu_device, is_half_precision)
             .map_err(|err| anyhow!("Unable to preprocess the image due to {err}"))?;
+
+        // Rescale the image to a smaller size for the FOV model in order to speed up a little the inference
+        let cpu_device = Default::default();
+        let rescale_input = utils::rescale_image(&img, FOV_ENCODER_IMG_SIZE as u32);
+        let fov_input_tensor =
+            utils::preprocess_image::<C>(&rescale_input, &cpu_device, is_half_precision)
+                .map_err(|err| anyhow!("Unable to preprocess the image due to {err}"))?;
+
+        let fov_result = self
+            .fov_model
+            .forward::<C, F>(fov_input_tensor.unsqueeze_dim(0), &cpu_device)?;
+
+        // Convert the tensor to gpu (still takes a bit of time)
+        let fov_gpu_data = fov_result.tensor.to_data();
+        let fov_gpu_tensor = Tensor::<B, 3>::from_data(fov_gpu_data, &self.gpu_device);
 
         dbg!("input tensor generation done");
 
-        let (depth, focallength_px) =
-            self.model
-                .infer::<F>(input, self.patch_model, ENCODER_IMG_SIZE, &self.device)?;
+        let (depth, focallength_px) = self.model.infer::<F>(
+            (input, fov_gpu_tensor),
+            self.patch_model,
+            self.image_model,
+            ENCODER_IMG_SIZE,
+            &self.gpu_device,
+        )?;
 
         let [h, w]: [usize; 2] = depth.shape().dims();
         let squeezed_depth: Tensor<B, 2> = depth.detach().squeeze();

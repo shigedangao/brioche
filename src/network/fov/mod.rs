@@ -1,12 +1,7 @@
 use super::{Network, NetworkConfig};
-use crate::{MixedFloats, model::fov_model::Model};
+use crate::MixedFloats;
 use anyhow::{Result, anyhow};
-use burn::{
-    Tensor,
-    module::Module,
-    nn::interpolate::{Interpolate2dConfig, InterpolateMode},
-    prelude::Backend,
-};
+use burn::{Tensor, module::Module, prelude::Backend};
 use encoder_seq::SequentialFovNetworkEncoder;
 use sequential::{SequentialFovNetwork, SequentialFovNetwork0};
 
@@ -92,23 +87,13 @@ impl<B: Backend> Fov<B> {
     /// The output tensor.
     pub fn forward<F: MixedFloats>(
         &mut self,
-        x: Tensor<B, 4>,
+        x: Tensor<B, 3>,
         lowres_feature: Tensor<B, 4>,
-        _is_half: bool,
-        fov_encoder: Model<B>,
     ) -> Result<Tensor<B, 4>> {
         let out = match self.encoder {
             Some(ref mut encoder) => {
-                let interpolate = Interpolate2dConfig::new()
-                    .with_scale_factor(Some([0.25, 0.25]))
-                    .with_output_size(None)
-                    .with_mode(InterpolateMode::Linear)
-                    .init();
-
-                let interpolated_out = interpolate.forward(x);
-
                 // Encode the interpolated features
-                let encoder_out = encoder.forward::<F>(interpolated_out, fov_encoder)?;
+                let encoder_out = encoder.forward::<F>(x)?;
 
                 // Slice to remove first token (dimension 1, from index 1 onwards)
                 let sliced_out = encoder_out.slice([
@@ -135,90 +120,5 @@ impl<B: Backend> Fov<B> {
         };
 
         Ok(out)
-    }
-}
-
-#[cfg(test)]
-#[cfg(feature = "metal")]
-mod tests {
-    use super::*;
-    use burn::{
-        backend::Metal,
-        tensor::{Distribution, Shape, TensorData},
-    };
-    use ndarray::Array4;
-
-    fn create_fov_model_with_weight() -> Fov<Metal> {
-        let device = Default::default();
-
-        let fov = Fov::<Metal>::new(
-            NetworkConfig::Fov(FovConfig {
-                num_features: 256,
-                with_fov_encoder: true,
-                embed_dim: 1024,
-            }),
-            &device,
-        )
-        .unwrap()
-        .with_record("butter/weights/fov_only.pt", &device);
-
-        fov
-    }
-
-    #[test]
-    fn expect_fov_test_to_output_something() {
-        let device = Default::default();
-
-        let mut fov = Fov::<Metal>::new(
-            NetworkConfig::Fov(FovConfig {
-                num_features: 256,
-                with_fov_encoder: true,
-                embed_dim: 1024,
-            }),
-            &device,
-        )
-        .unwrap();
-
-        let x: Tensor<Metal, 4> = Tensor::random(
-            Shape::new([1, 3, 1536, 1536]),
-            Distribution::Uniform(-1., 1.),
-            &device,
-        );
-
-        let lowres_feature: Tensor<Metal, 4> = Tensor::random(
-            Shape::new([1, 256, 48, 48]),
-            Distribution::Uniform(-6.5, 7.1),
-            &device,
-        );
-
-        let res = fov.forward::<f32>(x, lowres_feature, false, Model::new(&device));
-        assert!(res.is_ok());
-    }
-
-    #[test]
-    fn expect_to_run_with_deterministic_tensors() {
-        let device = Default::default();
-
-        // Create x
-        let x_matrix: Array4<f32> =
-            ndarray_npy::read_npy("testdata/tensors_data/fov/x.npy").unwrap();
-        let (x_data, _) = x_matrix.into_raw_vec_and_offset();
-        let x: Tensor<Metal, 4> =
-            Tensor::from_data(TensorData::new(x_data, [1, 3, 1536, 1536]), &device);
-
-        // Create low_res
-        let low_res: Array4<f32> =
-            ndarray_npy::read_npy("testdata/tensors_data/fov/lowres_feature.npy").unwrap();
-        let (low_res_data, _) = low_res.into_raw_vec_and_offset();
-        let low_res: Tensor<Metal, 4> =
-            Tensor::from_data(TensorData::new(low_res_data, [1, 256, 48, 48]), &device);
-
-        let mut fov = create_fov_model_with_weight();
-
-        let res = fov.forward::<f32>(x, low_res.detach(), false, Model::new(&device));
-
-        // @TODO test value, so far quite far i don't really know why
-        let res = res.unwrap();
-        println!("Final output: {}", res);
     }
 }
