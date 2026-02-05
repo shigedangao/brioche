@@ -93,7 +93,7 @@ impl<B: Backend> Fov<B> {
         let out = match self.encoder {
             Some(ref mut encoder) => {
                 // Encode the interpolated features
-                let encoder_out = encoder.forward::<F>(x)?;
+                let encoder_out = encoder.forward(x)?;
 
                 // Slice to remove first token (dimension 1, from index 1 onwards)
                 let sliced_out = encoder_out.slice([

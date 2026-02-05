@@ -3,6 +3,7 @@ use crate::MixedFloats;
 use anyhow::{Result, anyhow};
 use burn::{Tensor, prelude::Backend};
 use ort::{
+    ep,
     session::{Session, builder::GraphOptimizationLevel},
     value::Tensor as OrtTensor,
 };
@@ -27,14 +28,17 @@ impl CommonVitModel {
     /// * `thread_nb` - Number of threads to use for inference.
     pub fn new(model_path: PathBuf, thread_nb: usize) -> Result<Self> {
         let model = Session::builder()?
-            // .with_execution_providers([
-            //     // Prefer coreml for apple devices
-            //     ep::CoreML::default().build(),
-            //     // Prefer cuda for gpu devices
-            //     ep::CUDA::default().build(),
-            //     // Prefer directml for windows devices
-            //     ep::DirectML::default().build(),
-            // ])?
+            .with_execution_providers([
+                // Prefer coreml for apple devices
+                ep::CoreML::default()
+                    .with_subgraphs(true)
+                    .with_compute_units(ep::coreml::ComputeUnits::CPUAndGPU)
+                    .build(),
+                // Enable CUDA on GPU devices
+                ep::CUDA::default().build(),
+                // Enable ROCm on GPU devices
+                ep::ROCm::default().build(),
+            ])?
             .with_optimization_level(GraphOptimizationLevel::All)?
             .with_intra_threads(thread_nb)?
             .commit_from_file(model_path)?;
@@ -57,7 +61,7 @@ impl VitOps for CommonVitModel {
     ) -> Result<VitResult<B>> {
         // /!\ Some overhead happened when performing this operation for the FOV tensor.
         let data: Vec<F> = input
-            .to_data()
+            .into_data()
             .to_vec()
             .map_err(|err| anyhow!("Unable to convert the tensor to a vector due to {:?}", err))?;
 

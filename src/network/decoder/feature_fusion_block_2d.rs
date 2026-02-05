@@ -28,7 +28,7 @@ impl<B: Backend> FeatureFusionBlock2D<B> {
             .with_stride([1, 1])
             .with_padding(PaddingConfig2d::Explicit(1, 1))
             .with_bias(true)
-            .init::<B>(&device);
+            .init::<B>(device);
 
         let resnet1 = ResidualBlock::new(vec![
             SequentialNNModule {
@@ -62,7 +62,7 @@ impl<B: Backend> FeatureFusionBlock2D<B> {
             .with_stride([1, 1])
             .with_padding(PaddingConfig2d::Explicit(0, 0))
             .with_bias(true)
-            .init::<B>(&device);
+            .init::<B>(device);
 
         let mut ffb2d = Self {
             num_features,
@@ -80,7 +80,7 @@ impl<B: Backend> FeatureFusionBlock2D<B> {
                     .with_stride([2, 2])
                     .with_padding([0, 0])
                     .with_bias(false)
-                    .init::<B>(&device),
+                    .init::<B>(device),
             );
         }
 

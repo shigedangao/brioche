@@ -1,6 +1,5 @@
 #![recursion_limit = "256"]
 use brioche::four::Four;
-use burn::backend::Cpu;
 use clap::Parser;
 use std::time::Instant;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -23,7 +22,7 @@ fn main() {
     let t = Instant::now();
 
     println!("Running sample of loaf 🍞");
-    let four = Four::<Backend, Cpu>::new(
+    let four = Four::<Backend>::new(
         "./butter/onnx_model/depthpro_vit_patch.onnx",
         "./butter/onnx_model/depthpro_vit_image.onnx",
         "./butter/onnx_model/depthpro_vit_fov.onnx",

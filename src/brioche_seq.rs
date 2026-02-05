@@ -51,26 +51,26 @@ impl<B: Backend> Network<B> for BriocheSeq<B> {
             .with_stride([1, 1])
             .with_padding(PaddingConfig2d::Explicit(1, 1))
             .with_bias(true)
-            .init::<B>(&device);
+            .init::<B>(device);
 
         let conv_transpose2d =
             ConvTranspose2dConfig::new([dim_decoder / 2, dim_decoder / 2], [2, 2])
                 .with_stride([2, 2])
                 .with_padding([0, 0])
                 .with_bias(true)
-                .init::<B>(&device);
+                .init::<B>(device);
 
         let conv2d1 = Conv2dConfig::new([dim_decoder / 2, last_dims.0], [3, 3])
             .with_stride([1, 1])
             .with_padding(PaddingConfig2d::Explicit(1, 1))
             .with_bias(true)
-            .init::<B>(&device);
+            .init::<B>(device);
 
         let mut conv2d2 = Conv2dConfig::new([last_dims.0, last_dims.1], [1, 1])
             .with_stride([1, 1])
             .with_padding(PaddingConfig2d::Explicit(0, 0))
             .with_bias(true)
-            .init::<B>(&device);
+            .init::<B>(device);
 
         // Set the final convolution layer's bias to be 0.
         if let Some(bias) = &mut conv2d2.bias {
@@ -105,8 +105,7 @@ impl<B: Backend> BriocheSeq<B> {
         let x = self.conv2d1.forward(x);
         let x = self.relu0.forward(x);
         let x = self.conv2d2.forward(x);
-        let x = self.relu1.forward(x);
 
-        x
+        self.relu1.forward(x)
     }
 }

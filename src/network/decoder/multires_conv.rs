@@ -42,7 +42,7 @@ impl<B: Backend> Network<B> for MultiResConv<B> {
                     .with_stride([1, 1])
                     .with_padding(PaddingConfig2d::Explicit(0, 0))
                     .with_bias(false)
-                    .init::<B>(&device);
+                    .init::<B>(device);
 
                 Some(conv_config)
             }
@@ -59,7 +59,7 @@ impl<B: Backend> Network<B> for MultiResConv<B> {
                 .with_stride([1, 1])
                 .with_padding(PaddingConfig2d::Explicit(1, 1))
                 .with_bias(false)
-                .init::<B>(&device);
+                .init::<B>(device);
 
             convs.push(conv_config);
         });
