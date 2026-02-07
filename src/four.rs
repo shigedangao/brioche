@@ -34,6 +34,18 @@ pub struct Four<B: Backend> {
     gpu_device: B::Device,
 }
 
+/// Configuration in order to run the model
+pub struct FourConfig<S: AsRef<str>> {
+    pub patch_vit_path: S,
+    pub image_vit_path: S,
+    pub fov_vit_path: S,
+    pub fov_weight_path: S,
+    pub encoder_weight_path: S,
+    pub decoder_weight_path: S,
+    pub head_weight_path: S,
+    pub vit_thread_nb: usize,
+}
+
 impl<B: Backend> Four<B> {
     /// Create a new four.
     ///
@@ -43,16 +55,18 @@ impl<B: Backend> Four<B> {
     /// * `image_vit_path` - Path to the image vit model
     /// * `vit_thread_nb` - Number of threads to use for vit models
     /// * `device` - Device to use for the model
-    pub fn new<S: AsRef<str>>(
-        patch_vit_path: S,
-        image_vit_path: S,
-        fov_vit_path: S,
-        vit_thread_nb: usize,
-        fov_weight_path: S,
-        encoder_weight_path: S,
-        decoder_weight_path: S,
-        head_weight_path: S,
-    ) -> Result<Self> {
+    pub fn new<S: AsRef<str>>(arg: FourConfig<S>) -> Result<Self> {
+        let FourConfig {
+            patch_vit_path,
+            image_vit_path,
+            fov_vit_path,
+            fov_weight_path,
+            encoder_weight_path,
+            decoder_weight_path,
+            head_weight_path,
+            vit_thread_nb,
+        } = arg;
+
         let patch_model =
             PatchVitModel::new(PathBuf::from(patch_vit_path.as_ref()), vit_thread_nb)?;
 
@@ -158,8 +172,7 @@ impl<B: Backend> Four<B> {
             .register(min_invdepth_vizu_tensor)
             .register(max_invdepth_vizu_tensor)
             .register(inverse_depth)
-            .execute()
-            .to_vec();
+            .execute();
 
         let Some(min_invdepth_vizu) = extracted_tensor
             .first()

@@ -1,5 +1,5 @@
 #![recursion_limit = "256"]
-use brioche::four::Four;
+use brioche::four::{Four, FourConfig};
 use clap::Parser;
 use std::time::Instant;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -9,6 +9,9 @@ use burn::backend::Metal as Backend;
 
 #[cfg(feature = "cuda")]
 use burn::backend::Cuda as Backend;
+
+#[cfg(feature = "rocm")]
+use burn::backend::Rocm as Backend;
 
 #[derive(Parser, Debug, Clone)]
 #[command(version, about)]
@@ -22,16 +25,16 @@ fn main() {
     let t = Instant::now();
 
     println!("Running sample of loaf 🍞");
-    let four = Four::<Backend>::new(
-        "./butter/onnx_model/depthpro_vit_patch.onnx",
-        "./butter/onnx_model/depthpro_vit_image.onnx",
-        "./butter/onnx_model/depthpro_vit_fov.onnx",
-        6,
-        "./butter/weights/fov_only.pt",
-        "./butter/weights/encoder_only.pt",
-        "./butter/weights/decoder_only.pt",
-        "./butter/weights/head.pt",
-    )
+    let four = Four::<Backend>::new(FourConfig {
+        patch_vit_path: "./butter/onnx_model/depthpro_vit_patch.onnx",
+        image_vit_path: "./butter/onnx_model/depthpro_vit_image.onnx",
+        fov_vit_path: "./butter/onnx_model/depthpro_vit_fov.onnx",
+        fov_weight_path: "./butter/weights/fov_only.pt",
+        encoder_weight_path: "./butter/weights/encoder_only.pt",
+        decoder_weight_path: "./butter/weights/decoder_only.pt",
+        head_weight_path: "./butter/weights/head.pt",
+        vit_thread_nb: 6,
+    })
     .unwrap();
 
     println!("model initialized at {:?}", t.elapsed());

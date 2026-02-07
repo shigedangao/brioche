@@ -32,12 +32,19 @@ impl CommonVitModel {
                 // Prefer coreml for apple devices
                 ep::CoreML::default()
                     .with_subgraphs(true)
+                    .with_model_format(ep::coreml::ModelFormat::MLProgram)
                     .with_compute_units(ep::coreml::ComputeUnits::CPUAndGPU)
                     .build(),
                 // Enable CUDA on GPU devices
-                ep::CUDA::default().build(),
+                ep::CUDA::default()
+                    .with_arena_extend_strategy(ep::ArenaExtendStrategy::SameAsRequested)
+                    .with_conv_algorithm_search(ep::cuda::ConvAlgorithmSearch::Heuristic)
+                    .with_conv_max_workspace(false)
+                    .build(),
                 // Enable ROCm on GPU devices
-                ep::ROCm::default().build(),
+                ep::ROCm::default()
+                    .with_arena_extend_strategy(ep::ArenaExtendStrategy::SameAsRequested)
+                    .build(),
             ])?
             .with_optimization_level(GraphOptimizationLevel::All)?
             .with_intra_threads(thread_nb)?
