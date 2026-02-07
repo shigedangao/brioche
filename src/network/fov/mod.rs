@@ -1,5 +1,4 @@
 use super::{Network, NetworkConfig};
-use crate::MixedFloats;
 use anyhow::{Result, anyhow};
 use burn::{Tensor, module::Module, prelude::Backend};
 use encoder_seq::SequentialFovNetworkEncoder;
@@ -85,7 +84,7 @@ impl<B: Backend> Fov<B> {
     ///
     /// # Returns
     /// The output tensor.
-    pub fn forward<F: MixedFloats>(
+    pub fn forward(
         &mut self,
         x: Tensor<B, 3>,
         lowres_feature: Tensor<B, 4>,
