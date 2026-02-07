@@ -51,7 +51,7 @@ impl<B: Backend> ProjectionSeq<B> {
                     .with_stride([2, 2])
                     .with_padding([0, 0])
                     .with_bias(false)
-                    .init::<B>(&device),
+                    .init::<B>(device),
             );
         }
 
@@ -61,7 +61,7 @@ impl<B: Backend> ProjectionSeq<B> {
                 .with_stride([1, 1])
                 .with_padding(PaddingConfig2d::Explicit(0, 0))
                 .with_bias(false)
-                .init::<B>(&device),
+                .init::<B>(device),
             blocks,
         }
     }

@@ -52,10 +52,10 @@ mod utils {
             return Err(anyhow!("Unexpected shape for tokens: {:?}", shape));
         }
 
-        let v: Vec<usize> = shape.into_iter().map(|v| *v as usize).collect();
+        let v: Vec<usize> = shape.iter().map(|v| *v as usize).collect();
 
-        Ok(v.try_into()
-            .map_err(|err| anyhow!("Unable to convert shape into desired slice: {:?}", err))?)
+        v.try_into()
+            .map_err(|err| anyhow!("Unable to convert shape into desired slice: {:?}", err))
     }
 
     /// Get a burn tensor from ONNX Runtime output.
@@ -78,7 +78,7 @@ mod utils {
                 let shape_slice = utils::extract_tensor_shape::<S>(shape)?;
                 let tensor_data = TensorData::new(data.to_vec(), BurnShape::new(shape_slice));
 
-                Tensor::<B, S>::from_floats(tensor_data, &device)
+                Tensor::<B, S>::from_floats(tensor_data, device)
             }
             None => {
                 return Err(anyhow!(

@@ -55,10 +55,10 @@ impl<B: Backend> Brioche<B> {
         device: &B::Device,
     ) -> Result<Self> {
         Ok(Self {
-            head: BriocheSeq::<B>::new(NetworkConfig::Head(head_config), &device)?,
-            encoder: Encoder::<B>::new(NetworkConfig::Encoder(encoder_config), &device)?,
-            decoder: MultiResConv::<B>::new(NetworkConfig::Decoder(decoder_config), &device)?,
-            fov: Fov::<B>::new(NetworkConfig::Fov(fov_config), &device)?,
+            head: BriocheSeq::<B>::new(NetworkConfig::Head(head_config), device)?,
+            encoder: Encoder::<B>::new(NetworkConfig::Encoder(encoder_config), device)?,
+            decoder: MultiResConv::<B>::new(NetworkConfig::Decoder(decoder_config), device)?,
+            fov: Fov::<B>::new(NetworkConfig::Fov(fov_config), device)?,
         })
     }
 
@@ -123,8 +123,6 @@ impl<B: Backend> Brioche<B> {
             f_px_squeeze = Some(f_px.squeeze());
         }
 
-        dbg!("fpx squeeze");
-
         if resize {
             let inverse_depth_interpolate_fn = Interpolate2dConfig::new()
                 .with_output_size(Some([h, w]))
@@ -134,11 +132,7 @@ impl<B: Backend> Brioche<B> {
             inverse_depth = inverse_depth_interpolate_fn.forward(inverse_depth);
         }
 
-        dbg!("resize done");
-
         let depth: Tensor<B, 4> = 1. / inverse_depth.clamp(CLAMP_MIN, CLAMP_MAX);
-
-        dbg!("clamp");
 
         Ok((depth.squeeze(), f_px_squeeze))
     }
@@ -171,13 +165,9 @@ impl<B: Backend> Brioche<B> {
             return Err(anyhow!("input image size does not match the expected size"));
         }
 
-        dbg!("performing encoder");
-
         let encodings =
             self.encoder
                 .forward::<F>(input.clone(), patch_encoder, image_encoder, device)?;
-
-        dbg!("encoder finish");
 
         let (features, features_0) = self.decoder.forward(DecoderType::MultiResConv(vec![
             encodings.x_latent0_features,
@@ -187,21 +177,15 @@ impl<B: Backend> Brioche<B> {
             encodings.x_global_features,
         ]))?;
 
-        dbg!("decoder finished");
-
         let canonical_inverse_depth = self.head.forward(features);
         if features_0.is_none() {
             return Err(anyhow!("features_0 is None"));
         }
 
-        dbg!("head forward done");
-
         let fov_deg = self
             .fov
             .forward::<F>(fov_input, features_0.unwrap())
             .map_err(|err| anyhow!("Unable to perform forward on the fov: {err}"))?;
-
-        dbg!("fov done");
 
         Ok((canonical_inverse_depth, fov_deg))
     }

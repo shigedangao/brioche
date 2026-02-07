@@ -48,7 +48,7 @@ uv run state_exporter.py --head --checkpoint-path ./depth_pro.pt
 4. Once you have all these files you should be able to run the sample using this command from the **root** folder of this repository.
 
 ```sh
-cargo run --release --example sample
+cargo run --release --example sample_metal --features="metal"
 ```
 
 ## Note ⚠️

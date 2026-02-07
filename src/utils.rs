@@ -50,8 +50,8 @@ pub fn preprocess_image<B: Backend>(
     let tensor = Tensor::from_floats(tensor_data, device);
 
     // Create mean and std as 1D tensors
-    let mean = Tensor::<B, 1>::from_floats([0.5, 0.5, 0.5], &device);
-    let std = Tensor::<B, 1>::from_floats([0.5, 0.5, 0.5], &device);
+    let mean = Tensor::<B, 1>::from_floats([0.5, 0.5, 0.5], device);
+    let std = Tensor::<B, 1>::from_floats([0.5, 0.5, 0.5], device);
 
     // Reshape to (3, 1, 1) for broadcasting across H and W dimensions
     let mean = mean.reshape([3, 1, 1]);
@@ -67,6 +67,11 @@ pub fn preprocess_image<B: Backend>(
     Ok(tensor)
 }
 
+/// Rescale image to encoder base size
+///
+/// # Arguments
+/// * `img` - The image to rescale
+/// * `encoder_base_size` - The base size to rescale the image to
 pub fn rescale_image(img: &DynamicImage, encoder_base_size: u32) -> DynamicImage {
     img.resize_exact(
         encoder_base_size,

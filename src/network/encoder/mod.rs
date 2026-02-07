@@ -132,7 +132,7 @@ impl<B: Backend> Network<B> for Encoder<B> {
                 .with_stride([2, 2])
                 .with_padding([0, 0])
                 .with_bias(true)
-                .init::<B>(&device);
+                .init::<B>(device);
 
         let fuse_lowres = Conv2dConfig::new(
             [dims_encoder_three + dims_encoder_three, dims_encoder_three],
@@ -233,11 +233,10 @@ impl<B: Backend> Encoder<B> {
         let [batch, hw, ch] = embeddings.shape().dims();
 
         let embeddings_slice = embeddings.slice([0..batch, 1..hw, 0..ch]);
-        let reshaped_embeddings = embeddings_slice
-            .reshape([batch, height, width, ch])
-            .permute([0, 3, 1, 2]);
 
-        reshaped_embeddings
+        embeddings_slice
+            .reshape([batch, height, width, ch])
+            .permute([0, 3, 1, 2])
     }
 
     /// Merge the input tensor into a feature map.
@@ -333,12 +332,12 @@ impl<B: Backend> Encoder<B> {
         // Step 2: Run the backbone (BeiT) model and get the result of large batch size.
         let (x_pyramid_encoding, bb_highres_hook0, bb_highres_hook1) = patch_encoder
             .forward::<B, F>(x_pyramid_patches, device)
-            .and_then(|x| {
-                Ok((
+            .map(|x| {
+                (
                     self.reshape_feature(x.tensor, self.out_size, self.out_size),
                     x.hooks0,
                     x.hooks1,
-                ))
+                )
             })
             .map_err(|err| anyhow!("patch encoder fails due to: {err}"))?;
 
@@ -386,7 +385,7 @@ impl<B: Backend> Encoder<B> {
 
         // Apply the image encoder model.
         let x_global_features = image_encoder
-            .forward::<B, F>(x2_patches, &device)
+            .forward::<B, F>(x2_patches, device)
             .map_err(|err| anyhow!("Unable to perform the forward of the image encoder: {err}"))?;
 
         let x_global_features =
