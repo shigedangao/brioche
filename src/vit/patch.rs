@@ -25,7 +25,11 @@ impl PatchVitModel {
                     .with_compute_units(ep::coreml::ComputeUnits::CPUAndGPU)
                     .build(),
                 // Enable CUDA on GPU devices
-                ep::CUDA::default().build(),
+                ep::CUDA::default()
+                    .with_arena_extend_strategy(ep::ArenaExtendStrategy::SameAsRequested)
+                    .with_conv_algorithm_search(ep::cuda::ConvAlgorithmSearch::Heuristic)
+                    .with_conv_max_workspace(false)
+                    .build(),
                 // Enable ROCm on GPU devices
                 ep::ROCm::default().build(),
             ])?
