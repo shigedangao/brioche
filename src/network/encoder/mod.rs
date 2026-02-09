@@ -180,7 +180,7 @@ impl<B: Backend> Encoder<B> {
             // Half resolution: 768 by default.
             x1_interpolate.forward(x.clone()),
             // Quarter resolution: 384 by default. corresponding to the backbone resolution.
-            x2_interpolate.forward(x.clone()),
+            x2_interpolate.forward(x),
         )
     }
 

@@ -32,6 +32,7 @@ default = []
 metal = ["burn/metal"]
 cuda = ["burn/cuda"]
 wgpu = ["burn/wgpu"]
+rocm = ["burn/rocm"]
 
 [[example]]
 name = "sample_metal"

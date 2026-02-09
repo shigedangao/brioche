@@ -165,9 +165,9 @@ impl<B: Backend> Brioche<B> {
             return Err(anyhow!("input image size does not match the expected size"));
         }
 
-        let encodings =
-            self.encoder
-                .forward::<F>(input.clone(), patch_encoder, image_encoder, device)?;
+        let encodings = self
+            .encoder
+            .forward::<F>(input, patch_encoder, image_encoder, device)?;
 
         let (features, features_0) = self.decoder.forward(DecoderType::MultiResConv(vec![
             encodings.x_latent0_features,
@@ -184,7 +184,7 @@ impl<B: Backend> Brioche<B> {
 
         let fov_deg = self
             .fov
-            .forward::<F>(fov_input, features_0.unwrap())
+            .forward(fov_input, features_0.unwrap())
             .map_err(|err| anyhow!("Unable to perform forward on the fov: {err}"))?;
 
         Ok((canonical_inverse_depth, fov_deg))
