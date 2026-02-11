@@ -197,6 +197,8 @@ impl<B: Backend> Encoder<B> {
         };
 
         let [batch, chan, _, _] = input.dims();
+        // We're allowing manual div ceil as otherwise this will result in a different tensor shape.
+        #[allow(clippy::manual_div_ceil)]
         let steps = (image_size - PATCH_SIZE + patch_stride - 1) / patch_stride + 1;
 
         let mut patches = Vec::with_capacity(steps * steps);

@@ -1,0 +1,14 @@
+name: ci
+
+on: [push]
+
+jobs:
+  clippy:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: dtolnay/rust-toolchain@stable
+      - name: install clippy
+        run: rustup component add clippy
+      - name: clippy
+        run: cargo clippy --all-features
