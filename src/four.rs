@@ -35,6 +35,7 @@ pub struct Four<B: Backend> {
 }
 
 /// Configuration in order to run the model
+#[derive(Clone, Copy)]
 pub struct FourConfig<S: AsRef<str>> {
     pub patch_vit_path: S,
     pub image_vit_path: S,
@@ -84,7 +85,7 @@ impl<B: Backend> Four<B> {
         };
 
         let decoder_config = MultiResDecoderConfig {
-            dims_encoder: vec![vec![DIM_DECODER], DIM_ENCODER.to_vec()].concat(),
+            dims_encoder: [vec![DIM_DECODER], DIM_ENCODER.to_vec()].concat(),
             dim_decoder: DIM_DECODER,
         };
 

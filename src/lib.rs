@@ -13,6 +13,7 @@ use burn::Tensor;
 use burn::backend::wgpu::FloatElement;
 use burn::nn::interpolate::{Interpolate2dConfig, InterpolateMode};
 use burn::prelude::{Backend, Module};
+#[cfg(feature = "f16")]
 use burn::tensor::f16;
 use ort::tensor::PrimitiveTensorElementType;
 use std::f32::consts::PI;
@@ -29,6 +30,7 @@ pub trait MixedFloats: FloatElement + PrimitiveTensorElementType {}
 // Blanket implementation
 impl MixedFloats for f32 {}
 impl MixedFloats for f64 {}
+#[cfg(feature = "f16")]
 impl MixedFloats for f16 {}
 
 // Constants

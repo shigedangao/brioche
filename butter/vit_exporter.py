@@ -6,16 +6,15 @@ import timm
 import torch
 import torch.nn as nn
 import wget
+from onnxconverter_common import float16
 from torch.export import Dim
 
 from depth_pro_dummy_model import DummyDepthProModel, resize_model, resize_patch_embed
 
 parser = argparse.ArgumentParser(description="Export ViT model to ONNX")
-parser.add_argument("--fov", action=argparse.BooleanOptionalAction)
-parser.add_argument("--patch", action=argparse.BooleanOptionalAction)
-parser.add_argument("--image", action=argparse.BooleanOptionalAction)
 parser.add_argument("--checkpoint-path", type=str, required=True)
 parser.add_argument("--download-checkpoint", action=argparse.BooleanOptionalAction)
+parser.add_argument("--half", action=argparse.BooleanOptionalAction)
 
 args = parser.parse_args()
 
@@ -96,41 +95,54 @@ for key, value in state_dict.items():
 # Load the weights into the model
 model.load_state_dict(remapped_state, strict=False)
 
-# choose a dummy input tensor but which match the ViT encoder (fov, patch_encoder, image_encoder) that will be export to onnx
-dummy = torch.randn(1, 3, 384, 384)
+dummy_inputs = {
+    "patch": torch.randn(35, 3, 384, 384),
+    "image": torch.randn(1, 3, 384, 384),
+    "fov": torch.randn(1, 3, 384, 384),
+}
 
-# Either fov or patch_encoder or image_encoder
-export_model = model.fov.encoder
-file_name = "depthpro_vit_fov"
-output_names = ["tokens"]
+output_names = {
+    "patch": ["final_output", "hooks0", "hooks1"],
+    "image": ["tokens"],
+    "fov": ["tokens"],
+}
 
-if args.patch:
-    export_model = model.patch_encoder
-    file_name = "depthpro_vit_patch"
-    output_names = ["final_output", "hooks0", "hooks1"]
-    # override the tensor shape to match the patch encoder input shape
-    dummy = torch.randn(35, 3, 384, 384)
-elif args.image:
-    export_model = model.image_encoder.encoder
-    file_name = "depthpro_vit_image"
+models_ref = {
+    "patch": model.patch_encoder,
+    "image": model.image_encoder.encoder,
+    "fov": model.fov.encoder,
+}
 
+# Create the directory if it doesn't exist
 if not os.path.exists("./onnx_model"):
     os.makedirs("./onnx_model")
 
-torch.onnx.export(
-    export_model,
-    dummy,
-    f"./onnx_model/{file_name}.onnx",
-    opset_version=21,
-    input_names=["x"],
-    output_names=output_names,
-    dynamo=True,
-    dynamic_shapes={"x": {0: Dim("batch", min=1)}},
-)
+for config in ["patch", "image", "fov"]:
+    model_to_export = models_ref[config]
+    dummy_input = dummy_inputs[config]
+    output_name = output_names[config]
+    filename = f"depthpro_vit_{config}"
 
-m = onnx.load(f"./onnx_model/{file_name}.onnx")
-onnx.save_model(
-    m,
-    f"./onnx_model/{file_name}.onnx",
-    save_as_external_data=False,
-)
+    torch.onnx.export(
+        model_to_export,
+        dummy_input,
+        f"./onnx_model/{filename}.onnx",
+        opset_version=21,
+        input_names=["x"],
+        output_names=output_name,
+        dynamo=True,
+        dynamic_shapes={"x": {0: Dim("batch", min=1)}},
+    )
+
+    # Load the weights and re-export the model with the updated weights
+    m = onnx.load(f"./onnx_model/{filename}.onnx")
+    onnx.save_model(
+        m,
+        f"./onnx_model/{filename}.onnx",
+        save_as_external_data=False,
+    )
+
+    if args.half:
+        model_f32 = onnx.load(f"./onnx_model/{filename}.onnx")
+        model_fp16 = float16.convert_float_to_float16(model_f32)
+        onnx.save(model_fp16, f"./onnx_model/{filename}_half.onnx")

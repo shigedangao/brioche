@@ -379,7 +379,6 @@ dependencies = [
  "anyhow",
  "burn",
  "burn-import",
- "burn-store",
  "clap",
  "colorgrad",
  "image",
