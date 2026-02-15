@@ -11,6 +11,9 @@ use ort::{
 };
 use std::path::PathBuf;
 
+// Constant for the output shape
+const OUTPUT_SHAPE: [usize; 3] = [35, 577, 1024];
+
 #[derive(Debug)]
 pub struct PatchVitModel {
     model: Session,
@@ -67,7 +70,7 @@ impl VitOps for PatchVitModel {
         binding
             .bind_output(
                 "final_output",
-                OrtTensor::<F>::new(&Allocator::default(), [35, 577, 1024_usize])?,
+                OrtTensor::<F>::new(&Allocator::default(), OUTPUT_SHAPE)?,
             )
             .map_err(|err| anyhow!("Unable to bind final_output due to: {err}"))?;
 
@@ -75,7 +78,7 @@ impl VitOps for PatchVitModel {
         binding
             .bind_output(
                 "hooks0",
-                OrtTensor::<F>::new(&Allocator::default(), [35, 577, 1024_usize])?,
+                OrtTensor::<F>::new(&Allocator::default(), OUTPUT_SHAPE)?,
             )
             .map_err(|err| anyhow!("Unable to bind hooks0 due to: {err}"))?;
 
@@ -83,7 +86,7 @@ impl VitOps for PatchVitModel {
         binding
             .bind_output(
                 "hooks1",
-                OrtTensor::<F>::new(&Allocator::default(), [35, 577, 1024_usize])?,
+                OrtTensor::<F>::new(&Allocator::default(), OUTPUT_SHAPE)?,
             )
             .map_err(|err| anyhow!("Unable to bind hooks1 due to: {err}"))?;
 

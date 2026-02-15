@@ -83,7 +83,7 @@ impl VitOps for CommonVitModel {
         binding
             .bind_output(
                 "tokens",
-                OrtTensor::<F>::new(&Allocator::default(), [1, 577, 1024_usize])?,
+                OrtTensor::<F>::new(&Allocator::default(), [1_usize, 577_usize, 1024_usize])?,
             )
             .map_err(|err| anyhow!("Unable to bind output due to: {err}"))?;
 
