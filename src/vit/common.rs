@@ -4,6 +4,7 @@ use anyhow::{Result, anyhow};
 use burn::{Tensor, prelude::Backend};
 use ort::{
     ep,
+    memory::Allocator,
     session::{Session, builder::GraphOptimizationLevel},
     value::Tensor as OrtTensor,
 };
@@ -73,8 +74,20 @@ impl VitOps for CommonVitModel {
             .map_err(|err| anyhow!("Unable to convert the tensor to a vector due to {:?}", err))?;
 
         let tensor: OrtTensor<F> = OrtTensor::from_array(([1, 3, 384, 384], data))?;
-        let output = self.model.run(ort::inputs!["x" => tensor])?;
 
+        let mut binding = self.model.create_binding()?;
+        binding
+            .bind_input("x", &tensor)
+            .map_err(|err| anyhow!("Unable to bind input due to: {err}"))?;
+
+        binding
+            .bind_output(
+                "tokens",
+                OrtTensor::<F>::new(&Allocator::default(), [1_usize, 577_usize, 1024_usize])?,
+            )
+            .map_err(|err| anyhow!("Unable to bind output due to: {err}"))?;
+
+        let output = self.model.run_binding(&binding)?;
         let tensor = utils::get_burn_tensor_from_ort::<B, 3, F>(&output, "tokens", device)?;
 
         Ok(VitResult {

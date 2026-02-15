@@ -5,10 +5,14 @@ use burn::Tensor;
 use burn::prelude::Backend;
 use ort::{
     ep,
+    memory::Allocator,
     session::{Session, builder::GraphOptimizationLevel},
     value::Tensor as OrtTensor,
 };
 use std::path::PathBuf;
+
+// Constant for the output shape
+const OUTPUT_SHAPE: [usize; 3] = [35, 577, 1024];
 
 #[derive(Debug)]
 pub struct PatchVitModel {
@@ -56,9 +60,39 @@ impl VitOps for PatchVitModel {
             .map_err(|err| anyhow!("Unable to convert the tensor to a vector due to {:?}", err))?;
 
         let ort_tensor: OrtTensor<F> = OrtTensor::from_array(([35, 3, 384, 384], data))?;
+
+        let mut binding = self.model.create_binding()?;
+        binding
+            .bind_input("x", &ort_tensor)
+            .map_err(|err| anyhow!("Unable to bind input due to: {err}"))?;
+
+        // final_output
+        binding
+            .bind_output(
+                "final_output",
+                OrtTensor::<F>::new(&Allocator::default(), OUTPUT_SHAPE)?,
+            )
+            .map_err(|err| anyhow!("Unable to bind final_output due to: {err}"))?;
+
+        // hooks0
+        binding
+            .bind_output(
+                "hooks0",
+                OrtTensor::<F>::new(&Allocator::default(), OUTPUT_SHAPE)?,
+            )
+            .map_err(|err| anyhow!("Unable to bind hooks0 due to: {err}"))?;
+
+        // hooks1
+        binding
+            .bind_output(
+                "hooks1",
+                OrtTensor::<F>::new(&Allocator::default(), OUTPUT_SHAPE)?,
+            )
+            .map_err(|err| anyhow!("Unable to bind hooks1 due to: {err}"))?;
+
         let output = self
             .model
-            .run(ort::inputs!["x" => ort_tensor])
+            .run_binding(&binding)
             .map_err(|err| anyhow!("error while running the patch model: {err}"))?;
 
         let tensor = utils::get_burn_tensor_from_ort::<B, 3, F>(&output, "final_output", device)?;
