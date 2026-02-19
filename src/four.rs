@@ -16,7 +16,7 @@ use ndarray::Array;
 use std::path::PathBuf;
 
 // Constants
-const LAST_DIMS: (usize, usize) = (31, 1);
+const LAST_DIMS: (usize, usize) = (32, 1);
 const DIM_DECODER: usize = 256;
 const DIM_ENCODER: [usize; 4] = [256, 512, 1024, 1024];
 const EMBED_DIM: usize = 1024;
