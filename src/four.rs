@@ -18,7 +18,6 @@ use std::path::PathBuf;
 // Constants
 const LAST_DIMS: (usize, usize) = (32, 1);
 const DIM_DECODER: usize = 256;
-const DIM_ENCODER: [usize; 4] = [256, 512, 1024, 1024];
 const EMBED_DIM: usize = 1024;
 const ENCODER_IMG_SIZE: usize = 384 * 4;
 const FOV_ENCODER_IMG_SIZE: usize = 384;
@@ -37,6 +36,10 @@ const ENCODER_CONFIG: EncoderConfig = EncoderConfig {
     image_encoder_embed_dim: EMBED_DIM,
     decoder_features: DIM_DECODER,
     out_size: 384 / 16,
+};
+const MULTIRES_DECODER_CONFIG: MultiResDecoderConfig = MultiResDecoderConfig {
+    dims_encoder: [DIM_DECODER, 256, 512, 1024, 1024],
+    dim_decoder: DIM_DECODER,
 };
 
 // Custom type to hold the inference output
@@ -93,17 +96,12 @@ impl<B: Backend> Four<B> {
 
         let fov_model = CommonVitModel::new(PathBuf::from(fov_vit_path.as_ref()), vit_thread_nb)?;
 
-        let decoder_config = MultiResDecoderConfig {
-            dims_encoder: [vec![DIM_DECODER], DIM_ENCODER.to_vec()].concat(),
-            dim_decoder: DIM_DECODER,
-        };
-
         let gpu_device = Default::default();
 
         // Create the brioche (depth-pro)model
         let mut bm = Brioche::<B>::new(
             ENCODER_CONFIG,
-            decoder_config,
+            MULTIRES_DECODER_CONFIG,
             FOV_CONFIG,
             BRIOCHE_HEAD_CONFIG,
             &gpu_device,

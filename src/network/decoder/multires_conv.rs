@@ -20,7 +20,7 @@ pub struct MultiResConv<B: Backend> {
 
 #[derive(Debug, Default)]
 pub struct MultiResDecoderConfig {
-    pub dims_encoder: Vec<usize>,
+    pub dims_encoder: [usize; 5],
     pub dim_decoder: usize,
 }
 
@@ -190,7 +190,7 @@ mod tests {
 
         let decoder = MultiResConv::new(
             NetworkConfig::Decoder(MultiResDecoderConfig {
-                dims_encoder: vec![256, 256, 512, 1024, 1024],
+                dims_encoder: [256, 256, 512, 1024, 1024],
                 dim_decoder: 256,
             }),
             &device,
