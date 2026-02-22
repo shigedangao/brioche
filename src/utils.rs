@@ -80,6 +80,10 @@ pub fn rescale_image(img: &DynamicImage, encoder_base_size: u32) -> DynamicImage
     )
 }
 
+/// Convert depth map to color map. Perform the cmap operation that is being used in the matplotlib library.
+///
+/// # Arguments
+/// * `input` - The depth map to convert
 pub fn cmap(input: &Array2<f32>) -> Array3<u8> {
     let (h, w) = input.dim();
     // Create the turbo gradient domain [0..1]
@@ -102,6 +106,10 @@ pub fn cmap(input: &Array2<f32>) -> Array3<u8> {
     rgb
 }
 
+/// Drop the alpha channel from an RGBA image
+///
+/// # Arguments
+/// * `rgba` - The RGBA image to drop the alpha channel from
 pub fn drop_alpha(rgba: Array3<u8>) -> Array3<u8> {
     rgba.slice(s![.., .., 0..3]).to_owned() // (H, W, 3)
 }

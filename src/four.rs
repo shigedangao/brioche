@@ -22,7 +22,24 @@ const DIM_ENCODER: [usize; 4] = [256, 512, 1024, 1024];
 const EMBED_DIM: usize = 1024;
 const ENCODER_IMG_SIZE: usize = 384 * 4;
 const FOV_ENCODER_IMG_SIZE: usize = 384;
+const FOV_CONFIG: FovConfig = FovConfig {
+    num_features: DIM_DECODER,
+    with_fov_encoder: true,
+    embed_dim: EMBED_DIM,
+};
+const BRIOCHE_HEAD_CONFIG: BriocheHeadConfig = BriocheHeadConfig {
+    last_dims: LAST_DIMS,
+    dim_decoder: DIM_DECODER,
+};
+const ENCODER_CONFIG: EncoderConfig = EncoderConfig {
+    dims_encoder: [256, 512, 1024, 1024],
+    patch_encoder_embed_dim: EMBED_DIM,
+    image_encoder_embed_dim: EMBED_DIM,
+    decoder_features: DIM_DECODER,
+    out_size: 384 / 16,
+};
 
+// Custom type to hold the inference output
 type InferenceOutput<B> = (ImageBuffer<Rgb<u8>, Vec<u8>>, Option<Tensor<B, 4>>);
 
 /// Runner is a struct which helps to run the depth-pro model
@@ -76,27 +93,8 @@ impl<B: Backend> Four<B> {
 
         let fov_model = CommonVitModel::new(PathBuf::from(fov_vit_path.as_ref()), vit_thread_nb)?;
 
-        let encoder_config = EncoderConfig {
-            dims_encoder: vec![256, 512, 1024, 1024],
-            patch_encoder_embed_dim: EMBED_DIM,
-            image_encoder_embed_dim: EMBED_DIM,
-            decoder_features: DIM_DECODER,
-            out_size: 384 / 16,
-        };
-
         let decoder_config = MultiResDecoderConfig {
             dims_encoder: [vec![DIM_DECODER], DIM_ENCODER.to_vec()].concat(),
-            dim_decoder: DIM_DECODER,
-        };
-
-        let fov_config = FovConfig {
-            num_features: DIM_DECODER,
-            with_fov_encoder: true,
-            embed_dim: EMBED_DIM,
-        };
-
-        let brioche_head_config = BriocheHeadConfig {
-            last_dims: LAST_DIMS,
             dim_decoder: DIM_DECODER,
         };
 
@@ -104,10 +102,10 @@ impl<B: Backend> Four<B> {
 
         // Create the brioche (depth-pro)model
         let mut bm = Brioche::<B>::new(
-            encoder_config,
+            ENCODER_CONFIG,
             decoder_config,
-            fov_config,
-            brioche_head_config,
+            FOV_CONFIG,
+            BRIOCHE_HEAD_CONFIG,
             &gpu_device,
         )?;
 

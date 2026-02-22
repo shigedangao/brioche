@@ -55,7 +55,7 @@ pub struct EncoderOutput<B: Backend> {
 
 #[derive(Debug, Default)]
 pub struct EncoderConfig {
-    pub dims_encoder: Vec<usize>,
+    pub dims_encoder: [usize; 4],
     pub patch_encoder_embed_dim: usize,
     pub image_encoder_embed_dim: usize,
     pub decoder_features: usize,
@@ -430,7 +430,7 @@ mod tests {
         let device = Default::default();
 
         let encoder_config = EncoderConfig {
-            dims_encoder: vec![256, 512, 1024, 1024],
+            dims_encoder: [256, 512, 1024, 1024],
             patch_encoder_embed_dim: 1024,
             image_encoder_embed_dim: 1024,
             decoder_features: 256,
