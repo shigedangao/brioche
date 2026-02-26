@@ -26,7 +26,7 @@ impl<B: Backend> FeatureFusionBlock2D<B> {
     pub fn new(num_features: usize, deconv: bool, device: &B::Device) -> Self {
         let conv_config = Conv2dConfig::new([num_features, num_features], [3, 3])
             .with_stride([1, 1])
-            .with_padding(PaddingConfig2d::Explicit(1, 1))
+            .with_padding(PaddingConfig2d::Explicit(1, 1, 1, 1))
             .with_bias(true)
             .init::<B>(device);
 
@@ -60,7 +60,7 @@ impl<B: Backend> FeatureFusionBlock2D<B> {
         // Acts as a learned linear transformation to combine feature channels
         let outconv = Conv2dConfig::new([num_features, num_features], [1, 1])
             .with_stride([1, 1])
-            .with_padding(PaddingConfig2d::Explicit(0, 0))
+            .with_padding(PaddingConfig2d::Explicit(0, 0, 0, 0))
             .with_bias(true)
             .init::<B>(device);
 

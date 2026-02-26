@@ -5,7 +5,7 @@
         "cargo": {
           "allFeatures": false,
           "noDefaultFeatures": false,
-          "features": ["metal"],
+          "features": ["default"],
         },
       },
     },

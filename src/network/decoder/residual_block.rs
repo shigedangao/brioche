@@ -129,7 +129,7 @@ mod tests {
         // kernel_size - [height, width] (in pytorch you can set 1 value. The other will be set to the same value)
         let mut conv_config = Conv2dConfig::new([2, 2], [3, 3])
             .with_stride([1, 1])
-            .with_padding(PaddingConfig2d::Explicit(1, 1))
+            .with_padding(PaddingConfig2d::Explicit(1, 1, 1, 1))
             .with_bias(true)
             .init::<Wgpu>(&device);
 

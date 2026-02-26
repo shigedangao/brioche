@@ -33,7 +33,7 @@ impl<B: Backend> ProjectionSeq<B> {
         device: &B::Device,
     ) -> Self {
         // Upsampling
-        let mut blocks = Vec::new();
+        let mut blocks = Vec::with_capacity(upsample_layer);
 
         let conv2d_dims_out = match dims_int {
             Some(dims_int) => dims_int,
@@ -59,7 +59,7 @@ impl<B: Backend> ProjectionSeq<B> {
             // Projection block.
             conv2d: Conv2dConfig::new([dims_in, conv2d_dims_out], [1, 1])
                 .with_stride([1, 1])
-                .with_padding(PaddingConfig2d::Explicit(0, 0))
+                .with_padding(PaddingConfig2d::Explicit(0, 0, 0, 0))
                 .with_bias(false)
                 .init::<B>(device),
             blocks,

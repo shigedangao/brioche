@@ -7,6 +7,7 @@ import torch
 import torch.nn as nn
 import wget
 from onnxconverter_common import float16
+from onnxruntime.quantization import QuantType, quantize_dynamic
 from torch.export import Dim
 
 from depth_pro_dummy_model import DummyDepthProModel, resize_model, resize_patch_embed
@@ -15,6 +16,7 @@ parser = argparse.ArgumentParser(description="Export ViT model to ONNX")
 parser.add_argument("--checkpoint-path", type=str, required=True)
 parser.add_argument("--download-checkpoint", action=argparse.BooleanOptionalAction)
 parser.add_argument("--half", action=argparse.BooleanOptionalAction)
+parser.add_argument("--quantize", action=argparse.BooleanOptionalAction)
 
 args = parser.parse_args()
 
@@ -51,14 +53,14 @@ def create_minimal_vit_to_onnx() -> nn.Module:
     )
 
     vit_model = nn.Module()
-    vit_model.hooks = config["encoder_feature_layer_ids"]
+    vit_model.hooks = config["encoder_feature_layer_ids"]  # pyright: ignore
     vit_model.model = vit
-    vit_model.features = config["encoder_feature_dims"]
-    vit_model.vit_features = config["embed_dim"]
-    vit_model.model.start_index = 1
-    vit_model.model.patch_size = vit_model.model.patch_embed.patch_size
-    vit_model.model.is_vit = True
-    vit_model.model.forward = vit_model.model.forward_features
+    vit_model.features = config["encoder_feature_dims"]  # pyright: ignore
+    vit_model.vit_features = config["embed_dim"]  # pyright: ignore
+    vit_model.model.start_index = 1  # pyright: ignore
+    vit_model.model.patch_size = vit_model.model.patch_embed.patch_size  # pyright: ignore
+    vit_model.model.is_vit = True  # pyright: ignore
+    vit_model.model.forward = vit_model.model.forward_features  # pyright: ignore
 
     model = resize_patch_embed(vit_model.model, new_patch_size=(16, 16))
     model = resize_model(model, img_size=(384, 384))
@@ -125,7 +127,7 @@ for config in ["patch", "image", "fov"]:
 
     torch.onnx.export(
         model_to_export,
-        dummy_input,
+        dummy_input,  # pyright: ignore
         f"./onnx_model/{filename}.onnx",
         opset_version=21,
         input_names=["x"],
@@ -143,6 +145,13 @@ for config in ["patch", "image", "fov"]:
     )
 
     if args.half:
-        model_f32 = onnx.load(f"./onnx_model/{filename}.onnx")
-        model_fp16 = float16.convert_float_to_float16(model_f32)
+        model_fp16 = float16.convert_float_to_float16(m)
         onnx.save(model_fp16, f"./onnx_model/{filename}_half.onnx")
+        continue
+
+    if args.quantize:
+        quantize_dynamic(
+            m,
+            f"./onnx_model/{filename}_quantize.onnx",
+            weight_type=QuantType.QInt8,
+        )

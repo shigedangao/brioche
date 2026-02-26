@@ -3,20 +3,29 @@ use crate::network::decoder::{
     Decoder, DecoderType,
     multires_conv::{MultiResConv, MultiResDecoderConfig},
 };
-use crate::network::encoder::{Encoder, EncoderConfig};
-use crate::network::fov::{Fov, FovConfig};
-use crate::network::{Network, NetworkConfig};
-use crate::vit::{common::CommonVitModel, patch::PatchVitModel};
+use crate::network::{
+    Network, NetworkConfig,
+    encoder::{Encoder, EncoderConfig},
+    fov::{Fov, FovConfig},
+};
+#[cfg(feature = "burn_onnx")]
+use crate::vit::{common_burn::CommonVitModel, patch_burn::PatchVitModel};
 use anyhow::{Result, anyhow};
 use brioche_seq::{BriocheHeadConfig, BriocheSeq};
-use burn::Tensor;
-use burn::backend::wgpu::FloatElement;
-use burn::nn::interpolate::{Interpolate2dConfig, InterpolateMode};
-use burn::prelude::{Backend, Module};
 #[cfg(feature = "f16")]
 use burn::tensor::f16;
-use ort::value::PrimitiveTensorElementType;
+use burn::{
+    Tensor,
+    backend::wgpu::FloatElement,
+    nn::interpolate::{Interpolate2dConfig, InterpolateMode},
+    prelude::{Backend, Module},
+};
 use std::f32::consts::PI;
+#[cfg(feature = "ort_onnx")]
+use {
+    crate::vit::{common::CommonVitModel, patch::PatchVitModel},
+    ort::value::PrimitiveTensorElementType,
+};
 
 mod brioche_seq;
 pub mod four;
@@ -24,8 +33,14 @@ mod network;
 mod utils;
 mod vit;
 
+#[cfg(feature = "burn_onnx")]
+mod model;
+
 /// MixedFloats is a trait that defines a type that can be used as a placeholder to support F32 & F16 float types.
+#[cfg(feature = "ort_onnx")]
 pub trait MixedFloats: FloatElement + PrimitiveTensorElementType {}
+#[cfg(feature = "burn_onnx")]
+pub trait MixedFloats: FloatElement {}
 
 // Blanket implementation
 impl MixedFloats for f32 {}
@@ -79,25 +94,20 @@ impl<B: Backend> Brioche<B> {
         encoder_weight_path: S,
         fov_weight_path: S,
         head_weight_path: S,
-        device: &B::Device,
-    ) -> Self {
+    ) -> Result<Self> {
         // Load weights from the decoder path into the model.
-        self.decoder = self
-            .decoder
-            .with_record(decoder_weight_path.as_ref(), device);
+        self.decoder = self.decoder.with_record(decoder_weight_path.as_ref())?;
 
         // Load weights from the encoder path into the model.
-        self.encoder = self
-            .encoder
-            .with_record(encoder_weight_path.as_ref(), device);
+        self.encoder = self.encoder.with_record(encoder_weight_path.as_ref())?;
 
         // Load weights from the fov path into the model.
-        self.fov = self.fov.with_record(fov_weight_path.as_ref(), device);
+        self.fov = self.fov.with_record(fov_weight_path.as_ref())?;
 
         // Load weights from the head path into the model.
-        self.head = self.head.with_record(head_weight_path.as_ref(), device);
+        self.head = self.head.with_record(head_weight_path.as_ref())?;
 
-        self
+        Ok(self)
     }
 
     /// Infer the model for the given input tensor.

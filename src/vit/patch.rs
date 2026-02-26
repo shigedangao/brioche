@@ -1,6 +1,5 @@
 use super::{VitOps, VitResult, utils};
 use crate::MixedFloats;
-use anyhow::anyhow;
 use burn::Tensor;
 use burn::prelude::Backend;
 use ort::{
@@ -39,17 +38,16 @@ impl<B: Backend> VitOps<B> for PatchVitModel {
         input: Tensor<B, 4>,
         device: &B::Device,
     ) -> Result<VitResult<B>, anyhow::Error> {
-        let data = input
-            .into_data()
-            .to_vec()
-            .map_err(|err| anyhow!("Unable to convert the tensor to a vector due to {:?}", err))?;
+        let data = input.into_data().to_vec().map_err(|err| {
+            anyhow::anyhow!("Unable to convert the tensor to a vector due to {:?}", err)
+        })?;
 
         let ort_tensor: OrtTensor<F> = OrtTensor::from_array(([35, 3, 384, 384], data))?;
 
         let mut binding = self.model.create_binding()?;
         binding
             .bind_input("x", &ort_tensor)
-            .map_err(|err| anyhow!("Unable to bind input due to: {err}"))?;
+            .map_err(|err| anyhow::anyhow!("Unable to bind input due to: {err}"))?;
 
         // final_output
         binding
@@ -57,7 +55,7 @@ impl<B: Backend> VitOps<B> for PatchVitModel {
                 "final_output",
                 OrtTensor::<F>::new(&Allocator::default(), OUTPUT_SHAPE)?,
             )
-            .map_err(|err| anyhow!("Unable to bind final_output due to: {err}"))?;
+            .map_err(|err| anyhow::anyhow!("Unable to bind final_output due to: {err}"))?;
 
         // hooks0
         binding
@@ -65,7 +63,7 @@ impl<B: Backend> VitOps<B> for PatchVitModel {
                 "hooks0",
                 OrtTensor::<F>::new(&Allocator::default(), OUTPUT_SHAPE)?,
             )
-            .map_err(|err| anyhow!("Unable to bind hooks0 due to: {err}"))?;
+            .map_err(|err| anyhow::anyhow!("Unable to bind hooks0 due to: {err}"))?;
 
         // hooks1
         binding
@@ -73,12 +71,12 @@ impl<B: Backend> VitOps<B> for PatchVitModel {
                 "hooks1",
                 OrtTensor::<F>::new(&Allocator::default(), OUTPUT_SHAPE)?,
             )
-            .map_err(|err| anyhow!("Unable to bind hooks1 due to: {err}"))?;
+            .map_err(|err| anyhow::anyhow!("Unable to bind hooks1 due to: {err}"))?;
 
         let output = self
             .model
             .run_binding(&binding)
-            .map_err(|err| anyhow!("error while running the patch model: {err}"))?;
+            .map_err(|err| anyhow::anyhow!("error while running the patch model: {err}"))?;
 
         let tensor = utils::get_burn_tensor_from_ort::<B, 3, F>(&output, "final_output", device)?;
         let hooks0 = utils::get_burn_tensor_from_ort::<B, 3, F>(&output, "hooks0", device)?;

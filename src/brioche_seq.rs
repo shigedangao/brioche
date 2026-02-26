@@ -49,7 +49,7 @@ impl<B: Backend> Network<B> for BriocheSeq<B> {
 
         let conv2d0 = Conv2dConfig::new([dim_decoder, dim_decoder / 2], [3, 3])
             .with_stride([1, 1])
-            .with_padding(PaddingConfig2d::Explicit(1, 1))
+            .with_padding(PaddingConfig2d::Explicit(1, 1, 1, 1))
             .with_bias(true)
             .init::<B>(device);
 
@@ -62,13 +62,13 @@ impl<B: Backend> Network<B> for BriocheSeq<B> {
 
         let conv2d1 = Conv2dConfig::new([dim_decoder / 2, last_dims.0], [3, 3])
             .with_stride([1, 1])
-            .with_padding(PaddingConfig2d::Explicit(1, 1))
+            .with_padding(PaddingConfig2d::Explicit(1, 1, 1, 1))
             .with_bias(true)
             .init::<B>(device);
 
         let mut conv2d2 = Conv2dConfig::new([last_dims.0, last_dims.1], [1, 1])
             .with_stride([1, 1])
-            .with_padding(PaddingConfig2d::Explicit(0, 0))
+            .with_padding(PaddingConfig2d::Explicit(0, 0, 0, 0))
             .with_bias(true)
             .init::<B>(device);
 

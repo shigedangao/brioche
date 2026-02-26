@@ -2,11 +2,10 @@ use crate::brioche_seq::BriocheHeadConfig;
 use crate::network::decoder::multires_conv::MultiResDecoderConfig;
 use crate::network::encoder::EncoderConfig;
 use crate::network::fov::FovConfig;
-use anyhow::Result;
+use anyhow::{Result, anyhow};
 use burn::module::Module;
 use burn::prelude::Backend;
-use burn::record::{FullPrecisionSettings, Recorder};
-use burn_import::pytorch::{LoadArgs, PyTorchFileRecorder};
+use burn_store::{ModuleSnapshot, PytorchStore};
 
 pub mod decoder;
 pub mod encoder;
@@ -45,17 +44,16 @@ pub trait Network<B: Backend> {
     /// # Returns
     ///
     /// A new network instance with the weights loaded from the pt file.
-    fn with_record<S>(self, path: S, device: &B::Device) -> Self
+    fn with_record<S>(mut self, path: S) -> Result<Self>
     where
         Self: Sized + Module<B>,
         S: AsRef<str>,
     {
-        let arg = LoadArgs::new(path.as_ref().into());
+        let mut store = PytorchStore::from_file(path.as_ref());
 
-        let record = PyTorchFileRecorder::<FullPrecisionSettings>::default()
-            .load(arg, device)
-            .expect("Failed to load model weights");
+        self.load_from(&mut store)
+            .map_err(|err| anyhow!("Unable to load the model due to {err}"))?;
 
-        self.load_record(record)
+        Ok(self)
     }
 }

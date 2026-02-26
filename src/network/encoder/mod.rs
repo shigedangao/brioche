@@ -1,7 +1,10 @@
 use crate::MixedFloats;
 use crate::network::{Network, NetworkConfig};
-use crate::vit::common::CommonVitModel;
-use crate::vit::{VitOps, patch::PatchVitModel};
+use crate::vit::VitOps;
+#[cfg(feature = "ort_onnx")]
+use crate::vit::{common::CommonVitModel, patch::PatchVitModel};
+#[cfg(feature = "burn_onnx")]
+use crate::vit::{common_burn::CommonVitModel, patch_burn::PatchVitModel};
 use anyhow::{Result, anyhow};
 use burn::{
     Tensor,
@@ -139,7 +142,7 @@ impl<B: Backend> Network<B> for Encoder<B> {
             [1, 1],
         )
         .with_stride([1, 1])
-        .with_padding(PaddingConfig2d::Explicit(0, 0))
+        .with_padding(PaddingConfig2d::Explicit(0, 0, 0, 0))
         .with_bias(true)
         .init::<B>(device);
 
@@ -439,7 +442,8 @@ mod tests {
 
         let encoder = Encoder::<Metal>::new(NetworkConfig::Encoder(encoder_config), &device)
             .unwrap()
-            .with_record("butter/encoder_only.pt", &device);
+            .with_record("butter/encoder_only.pt")
+            .unwrap();
 
         encoder
     }

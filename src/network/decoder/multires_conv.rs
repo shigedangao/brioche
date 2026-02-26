@@ -40,7 +40,7 @@ impl<B: Backend> Network<B> for MultiResConv<B> {
             _ => {
                 let conv_config = Conv2dConfig::new([*dim, dim_decoder], [1, 1])
                     .with_stride([1, 1])
-                    .with_padding(PaddingConfig2d::Explicit(0, 0))
+                    .with_padding(PaddingConfig2d::Explicit(0, 0, 0, 0))
                     .with_bias(false)
                     .init::<B>(device);
 
@@ -57,7 +57,7 @@ impl<B: Backend> Network<B> for MultiResConv<B> {
         dims_encoder.iter().skip(1).for_each(|dim| {
             let conv_config = Conv2dConfig::new([*dim, dim_decoder], [3, 3])
                 .with_stride([1, 1])
-                .with_padding(PaddingConfig2d::Explicit(1, 1))
+                .with_padding(PaddingConfig2d::Explicit(1, 1, 1, 1))
                 .with_bias(false)
                 .init::<B>(device);
 
@@ -196,10 +196,8 @@ mod tests {
             &device,
         )
         .unwrap()
-        .with_record(
-            "/Users/marcintha/workspace/brioche/butter/decoder_only.pt",
-            &device,
-        );
+        .with_record("/Users/marcintha/workspace/brioche/butter/decoder_only.pt")
+        .unwrap();
 
         decoder
     }
