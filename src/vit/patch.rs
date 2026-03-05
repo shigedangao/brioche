@@ -1,12 +1,14 @@
 use super::{VitOps, VitResult, utils};
 use crate::MixedFloats;
-use anyhow::{Result, anyhow};
+use anyhow::anyhow;
 use burn::Tensor;
 use burn::prelude::Backend;
 use ort::{
-    ep,
     memory::Allocator,
-    session::{Session, builder::GraphOptimizationLevel},
+    session::{
+        Session,
+        builder::{AutoDevicePolicy, GraphOptimizationLevel},
+    },
     value::Tensor as OrtTensor,
 };
 use std::path::PathBuf;
@@ -20,26 +22,9 @@ pub struct PatchVitModel {
 }
 
 impl PatchVitModel {
-    pub fn new(model_path: PathBuf, thread_nb: usize) -> Result<Self> {
+    pub fn new(model_path: PathBuf, thread_nb: usize) -> Result<Self, ort::Error> {
         let model = Session::builder()?
-            .with_execution_providers([
-                // Prefer coreml for apple devices
-                ep::CoreML::default()
-                    .with_subgraphs(true)
-                    .with_model_format(ep::coreml::ModelFormat::MLProgram)
-                    .with_compute_units(ep::coreml::ComputeUnits::CPUAndGPU)
-                    .build(),
-                // Enable CUDA on GPU devices
-                ep::CUDA::default()
-                    .with_arena_extend_strategy(ep::ArenaExtendStrategy::SameAsRequested)
-                    .with_conv_algorithm_search(ep::cuda::ConvAlgorithmSearch::Heuristic)
-                    .with_conv_max_workspace(false)
-                    .build(),
-                // Enable ROCm on GPU devices
-                ep::ROCm::default()
-                    .with_arena_extend_strategy(ep::ArenaExtendStrategy::SameAsRequested)
-                    .build(),
-            ])?
+            .with_auto_device(AutoDevicePolicy::MaxPerformance)?
             .with_optimization_level(GraphOptimizationLevel::All)?
             .with_intra_threads(thread_nb)?
             .commit_from_file(model_path)?;
@@ -53,7 +38,7 @@ impl VitOps for PatchVitModel {
         &mut self,
         input: Tensor<B, 4>,
         device: &B::Device,
-    ) -> Result<VitResult<B>> {
+    ) -> Result<VitResult<B>, anyhow::Error> {
         let data = input
             .into_data()
             .to_vec()

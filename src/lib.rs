@@ -15,7 +15,7 @@ use burn::nn::interpolate::{Interpolate2dConfig, InterpolateMode};
 use burn::prelude::{Backend, Module};
 #[cfg(feature = "f16")]
 use burn::tensor::f16;
-use ort::tensor::PrimitiveTensorElementType;
+use ort::value::PrimitiveTensorElementType;
 use std::f32::consts::PI;
 
 mod brioche_seq;

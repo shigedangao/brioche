@@ -5,7 +5,7 @@ use burn::{
     prelude::Backend,
     tensor::{Shape as BurnShape, TensorData},
 };
-use ort::tensor::Shape;
+use ort::value::Shape;
 
 pub mod common;
 pub mod patch;
