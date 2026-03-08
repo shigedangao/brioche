@@ -333,7 +333,7 @@ impl<B: Backend> Encoder<B> {
 
         // Step 2: Run the backbone (BeiT) model and get the result of large batch size.
         let (x_pyramid_encoding, bb_highres_hook0, bb_highres_hook1) = patch_encoder
-            .forward::<B, F>(x_pyramid_patches, device)
+            .forward::<F>(x_pyramid_patches, device)
             .map(|x| {
                 (
                     self.reshape_feature(x.tensor, self.out_size, self.out_size),
@@ -387,7 +387,7 @@ impl<B: Backend> Encoder<B> {
 
         // Apply the image encoder model.
         let x_global_features = image_encoder
-            .forward::<B, F>(x2_patches, device)
+            .forward::<F>(x2_patches, device)
             .map_err(|err| anyhow!("Unable to perform the forward of the image encoder: {err}"))?;
 
         let x_global_features =

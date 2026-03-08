@@ -17,7 +17,7 @@ pub struct VitResult<B: Backend> {
     pub hooks1: Option<Tensor<B, 3>>,
 }
 
-pub trait VitOps {
+pub trait VitOps<B: Backend> {
     /// Forward pass of the ViT model.
     ///
     /// # Arguments
@@ -27,7 +27,7 @@ pub trait VitOps {
     /// # Returns
     /// A `Result` containing the output tensor of shape (batch_size, num_patches, embedding_dim),
     /// and two optional hooks for intermediate results.
-    fn forward<B: Backend, F: MixedFloats>(
+    fn forward<F: MixedFloats>(
         &mut self,
         input: Tensor<B, 4>,
         device: &B::Device,

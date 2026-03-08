@@ -33,8 +33,8 @@ impl PatchVitModel {
     }
 }
 
-impl VitOps for PatchVitModel {
-    fn forward<B: Backend, F: MixedFloats>(
+impl<B: Backend> VitOps<B> for PatchVitModel {
+    fn forward<F: MixedFloats>(
         &mut self,
         input: Tensor<B, 4>,
         device: &B::Device,

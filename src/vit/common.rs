@@ -40,14 +40,14 @@ impl CommonVitModel {
     }
 }
 
-impl VitOps for CommonVitModel {
+impl<B: Backend> VitOps<B> for CommonVitModel {
     /// Perform a forward pass on the input data.
     ///
     ///
     /// # Arguments
     /// * `input` - Input data.
     /// * `device` - Device to use for inference.
-    fn forward<B: Backend, F: MixedFloats>(
+    fn forward<F: MixedFloats>(
         &mut self,
         input: Tensor<B, 4>,
         device: &B::Device,

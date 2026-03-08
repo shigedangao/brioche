@@ -141,7 +141,7 @@ impl<B: Backend> Four<B> {
 
         let fov_result = self
             .fov_model
-            .forward::<B, F>(fov_input_tensor.unsqueeze_dim(0), &self.gpu_device)?;
+            .forward::<F>(fov_input_tensor.unsqueeze_dim(0), &self.gpu_device)?;
 
         let (depth, focallength_px) = self.model.infer::<F>(
             (input, fov_result.tensor),
