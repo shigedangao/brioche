@@ -37,10 +37,7 @@ uv run vit_exporter.py --checkpoint-path ./depth_pro.pt
 3. Export the weights for the network model by running the following command:
 
 ```sh
-uv run state_exporter.py --fov --checkpoint-path ./depth_pro.pt
-uv run state_exporter.py --encoder --checkpoint-path ./depth_pro.pt
-uv run state_exporter.py --decoder --checkpoint-path ./depth_pro.pt
-uv run state_exporter.py --head --checkpoint-path ./depth_pro.pt
+uv run state_exporter.py --checkpoint-path ./depth_pro.pt
 ```
 
 4. Once you have all these files you should be able to run the sample using this command from the **root** folder of this repository.
@@ -60,7 +57,7 @@ uv run vit_exporter.py --checkpoint-path ./depth_pro.pt --half
 Once it's done. You can use the following command to run the sample which uses the **half precision (f16)**, by running the following command:
 
 ```sh
-cargo run --release --example sample_metal --features="metal,f16" --no-default-features```
+cargo run --release --example sample_metal --features="metal,f16" --no-default-features
 ```
 
 ## Note ⚠️
