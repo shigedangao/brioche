@@ -64,6 +64,42 @@ impl<B: Backend> Brioche<B> {
         })
     }
 
+    /// With record load weights from the given paths into the model.
+    ///
+    /// # Arguments
+    ///
+    /// * `decoder_weight_path` - Path to the decoder weights.
+    /// * `encoder_weight_path` - Path to the encoder weights.
+    /// * `fov_weight_path` - Path to the fov weights.
+    /// * `head_weight_path` - Path to the head weights.
+    /// * `device` - Device to load the weights onto.
+    pub fn with_record<S: AsRef<str>>(
+        mut self,
+        decoder_weight_path: S,
+        encoder_weight_path: S,
+        fov_weight_path: S,
+        head_weight_path: S,
+        device: &B::Device,
+    ) -> Self {
+        // Load weights from the decoder path into the model.
+        self.decoder = self
+            .decoder
+            .with_record(decoder_weight_path.as_ref(), device);
+
+        // Load weights from the encoder path into the model.
+        self.encoder = self
+            .encoder
+            .with_record(encoder_weight_path.as_ref(), device);
+
+        // Load weights from the fov path into the model.
+        self.fov = self.fov.with_record(fov_weight_path.as_ref(), device);
+
+        // Load weights from the head path into the model.
+        self.head = self.head.with_record(head_weight_path.as_ref(), device);
+
+        self
+    }
+
     /// Infer the model for the given input tensor.
     /// /!\ For a trial implementation the "f_px" parameter is not taken into account.
     ///

@@ -1,13 +1,11 @@
+use crate::Brioche;
 use crate::MixedFloats;
 use crate::brioche_seq::BriocheHeadConfig;
-use crate::network::decoder::multires_conv::MultiResDecoderConfig;
-use crate::network::encoder::EncoderConfig;
-use crate::network::fov::FovConfig;
+use crate::network::{
+    decoder::multires_conv::MultiResDecoderConfig, encoder::EncoderConfig, fov::FovConfig,
+};
 use crate::utils;
-use crate::vit::VitOps;
-use crate::vit::common::CommonVitModel;
-use crate::vit::patch::PatchVitModel;
-use crate::{Brioche, network::Network};
+use crate::vit::{VitOps, common::CommonVitModel, patch::PatchVitModel};
 use anyhow::{Result, anyhow};
 use burn::tensor::Transaction;
 use burn::{prelude::Backend, tensor::Tensor};
@@ -99,19 +97,20 @@ impl<B: Backend> Four<B> {
         let gpu_device = Default::default();
 
         // Create the brioche (depth-pro)model
-        let mut bm = Brioche::<B>::new(
+        let bm = Brioche::<B>::new(
             ENCODER_CONFIG,
             MULTIRES_DECODER_CONFIG,
             FOV_CONFIG,
             BRIOCHE_HEAD_CONFIG,
             &gpu_device,
-        )?;
-
-        // Set the weights on the property of the model.
-        bm.decoder = bm.decoder.with_record(decoder_weight_path, &gpu_device);
-        bm.encoder = bm.encoder.with_record(encoder_weight_path, &gpu_device);
-        bm.fov = bm.fov.with_record(fov_weight_path, &gpu_device);
-        bm.head = bm.head.with_record(head_weight_path, &gpu_device);
+        )?
+        .with_record(
+            decoder_weight_path,
+            encoder_weight_path,
+            fov_weight_path,
+            head_weight_path,
+            &gpu_device,
+        );
 
         Ok(Self {
             model: bm,
@@ -204,8 +203,9 @@ impl<B: Backend> Four<B> {
         let cmap_matrix = utils::drop_alpha(cmap_matrix);
 
         let (raw_vec, _) = cmap_matrix.into_raw_vec_and_offset();
-        let img_buffer: ImageBuffer<Rgb<u8>, Vec<u8>> =
-            ImageBuffer::from_raw(width as u32, height as u32, raw_vec).unwrap();
+        let Some(img_buffer) = ImageBuffer::from_raw(width as u32, height as u32, raw_vec) else {
+            return Err(anyhow!("Unable to create image buffer"));
+        };
 
         Ok((img_buffer, focallength_px))
     }

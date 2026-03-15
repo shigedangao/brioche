@@ -3,6 +3,7 @@ use brioche::four::{Four, FourConfig};
 #[cfg(feature = "f16")]
 use burn::tensor::f16;
 use clap::Parser;
+use spinners::{Spinner, Spinners};
 use std::sync::LazyLock;
 use std::time::Instant;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -56,6 +57,9 @@ fn main() {
 
     println!("model initialized at {:?}", t.elapsed());
 
+    // start spinner
+    let mut sp = Spinner::new(Spinners::Dots8, "Generating image...".into());
+
     #[cfg(feature = "f32")]
     let (img_buffer, _focallength_px) = four
         .run::<_, f32>(cli.source, false)
@@ -77,5 +81,6 @@ fn main() {
         .save(format!("./test-{:?}.jpg", timestamp))
         .expect("Expect to save the image");
 
-    println!("Image has been generated in {:?}", t.elapsed());
+    // stop spinner
+    sp.stop_with_message(format!("Image has been generated in {:?}", t.elapsed()));
 }
