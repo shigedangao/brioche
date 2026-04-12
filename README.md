@@ -9,9 +9,15 @@ Brioche is a Rust implementation of the [ml-depth-pro](https://github.com/apple/
 ## Output example below
 
 <p align="center">
-  <img src="./assets/input.jpg" width="45%" />
-  <img src="test.jpg" width="45%" />
+  <img src="./assets/input.jpg" width="33%" />
+  <img src="test.jpg" width="33%" />
+  <img src="test-quantize.jpg" width="33%" />
 </p>
+
+> [!NOTE]
+> 1st image is the original image which is use to perfrom the inference
+> 2nd image is the inference using w/o quantization
+> 3rd image is the result with quantization
 
 ## Requirements
 
@@ -80,7 +86,7 @@ cd butter && uv run vit_exporter.py --checkpoint-path ./depth_pro.pt --quantize
 
 ```sh
 cargo run --release --example sample_metal --features="metal,f32" -- --quantize
-``
+```
 
 ## Note ⚠️
 
