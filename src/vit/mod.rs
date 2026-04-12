@@ -1,14 +1,19 @@
 use crate::MixedFloats;
-use anyhow::{Result, anyhow};
-use burn::{
-    Tensor,
-    prelude::Backend,
-    tensor::{Shape as BurnShape, TensorData},
-};
+use crate::four::FourConfig;
+use anyhow::Result;
+use burn::{Tensor, prelude::Backend};
+#[cfg(feature = "ort_onnx")]
 use ort::value::Shape;
 
+#[cfg(feature = "ort_onnx")]
 pub mod common;
+#[cfg(feature = "ort_onnx")]
 pub mod patch;
+
+#[cfg(feature = "burn_onnx")]
+pub mod common_burn;
+#[cfg(feature = "burn_onnx")]
+pub mod patch_burn;
 
 #[derive(Debug)]
 pub struct VitResult<B: Backend> {
@@ -34,11 +39,19 @@ pub trait VitOps<B: Backend> {
     ) -> Result<VitResult<B>>;
 }
 
-mod utils {
-    use crate::MixedFloats;
-
+pub(crate) mod utils {
     use super::*;
-    use ort::session::SessionOutputs;
+    #[cfg(feature = "burn_onnx")]
+    use crate::vit::{common_burn::CommonVitModel, patch_burn::PatchVitModel};
+    #[cfg(feature = "ort_onnx")]
+    use {
+        crate::{
+            MixedFloats,
+            vit::{common::CommonVitModel, patch::PatchVitModel},
+        },
+        burn::tensor::{Shape as BurnShape, TensorData},
+        ort::session::SessionOutputs,
+    };
 
     /// Extracts the shape of a tensor into a fixed-size array.
     ///
@@ -47,15 +60,16 @@ mod utils {
     ///
     /// # Returns
     /// A `Result` containing the shape as a fixed-size array.
+    #[cfg(feature = "ort_onnx")]
     pub fn extract_tensor_shape<const S: usize>(shape: &Shape) -> Result<[usize; S]> {
         if shape.len() != S {
-            return Err(anyhow!("Unexpected shape for tokens: {:?}", shape));
+            return Err(anyhow::anyhow!("Unexpected shape for tokens: {:?}", shape));
         }
 
         let v: Vec<usize> = shape.iter().map(|v| *v as usize).collect();
 
         v.try_into()
-            .map_err(|err| anyhow!("Unable to convert shape into desired slice: {:?}", err))
+            .map_err(|err| anyhow::anyhow!("Unable to convert shape into desired slice: {:?}", err))
     }
 
     /// Get a burn tensor from ONNX Runtime output.
@@ -67,6 +81,7 @@ mod utils {
     ///
     /// # Returns
     /// A `Result` containing the burn tensor.
+    #[cfg(feature = "ort_onnx")]
     pub fn get_burn_tensor_from_ort<B: Backend, const S: usize, F: MixedFloats>(
         output: &SessionOutputs,
         output_ident: &str,
@@ -81,12 +96,45 @@ mod utils {
                 Tensor::<B, S>::from_floats(tensor_data, device)
             }
             None => {
-                return Err(anyhow!(
+                return Err(anyhow::anyhow!(
                     "Failed to extract {output_ident} from model output"
                 ));
             }
         };
 
         Ok(tensor)
+    }
+
+    #[cfg(feature = "burn_onnx")]
+    pub fn load_models<S: AsRef<str> + Clone>(
+        _: FourConfig<S>,
+    ) -> Result<(PatchVitModel, CommonVitModel, CommonVitModel)> {
+        use crate::vit::common_burn::CommonVitModelList;
+
+        Ok((
+            PatchVitModel::new()?,
+            CommonVitModel::new(common_burn::CommonVitModelList::Fov)?,
+            CommonVitModel::new(CommonVitModelList::Image)?,
+        ))
+    }
+
+    #[cfg(feature = "ort_onnx")]
+    pub fn load_models<S: AsRef<str> + Clone>(
+        config: FourConfig<S>,
+    ) -> Result<(PatchVitModel, CommonVitModel, CommonVitModel)> {
+        let patch_model = PatchVitModel::new(
+            std::path::PathBuf::from(config.patch_vit_path.as_ref()),
+            config.vit_thread_nb,
+        )?;
+        let fov_model = CommonVitModel::new(
+            std::path::PathBuf::from(config.fov_vit_path.as_ref()),
+            config.vit_thread_nb,
+        )?;
+        let image_model = CommonVitModel::new(
+            std::path::PathBuf::from(config.image_vit_path.as_ref()),
+            config.vit_thread_nb,
+        )?;
+
+        Ok((patch_model, fov_model, image_model))
     }
 }

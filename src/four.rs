@@ -5,8 +5,13 @@ use crate::network::{
     decoder::multires_conv::MultiResDecoderConfig, encoder::EncoderConfig, fov::FovConfig,
 };
 use crate::utils;
-use crate::vit::{VitOps, common::CommonVitModel, patch::PatchVitModel};
+#[cfg(feature = "ort_onnx")]
+use crate::vit::{common::CommonVitModel, patch::PatchVitModel};
+#[cfg(feature = "burn_onnx")]
+use crate::vit::{common_burn::CommonVitModel, patch_burn::PatchVitModel};
+use crate::{vit, vit::VitOps};
 use anyhow::{Result, anyhow};
+use burn::prelude::ToElement;
 use burn::tensor::Transaction;
 use burn::{prelude::Backend, tensor::Tensor};
 use image::{ImageBuffer, Rgb};
@@ -54,7 +59,7 @@ pub struct Four<B: Backend> {
 
 /// Configuration in order to run the model
 #[derive(Clone, Copy)]
-pub struct FourConfig<S: AsRef<str>> {
+pub struct FourConfig<S: AsRef<str> + Clone> {
     pub patch_vit_path: S,
     pub image_vit_path: S,
     pub fov_vit_path: S,
@@ -74,26 +79,8 @@ impl<B: Backend> Four<B> {
     /// * `image_vit_path` - Path to the image vit model
     /// * `vit_thread_nb` - Number of threads to use for vit models
     /// * `device` - Device to use for the model
-    pub fn new<S: AsRef<str>>(arg: FourConfig<S>) -> Result<Self> {
-        let FourConfig {
-            patch_vit_path,
-            image_vit_path,
-            fov_vit_path,
-            fov_weight_path,
-            encoder_weight_path,
-            decoder_weight_path,
-            head_weight_path,
-            vit_thread_nb,
-        } = arg;
-
-        let patch_model =
-            PatchVitModel::new(PathBuf::from(patch_vit_path.as_ref()), vit_thread_nb)?;
-
-        let image_model =
-            CommonVitModel::new(PathBuf::from(image_vit_path.as_ref()), vit_thread_nb)?;
-
-        let fov_model = CommonVitModel::new(PathBuf::from(fov_vit_path.as_ref()), vit_thread_nb)?;
-
+    pub fn new<S: AsRef<str> + Clone>(arg: FourConfig<S>) -> Result<Self> {
+        let (patch_model, fov_model, image_model) = vit::utils::load_models(arg.clone())?;
         let gpu_device = Default::default();
 
         // Create the brioche (depth-pro)model
@@ -105,12 +92,11 @@ impl<B: Backend> Four<B> {
             &gpu_device,
         )?
         .with_record(
-            decoder_weight_path,
-            encoder_weight_path,
-            fov_weight_path,
-            head_weight_path,
-            &gpu_device,
-        );
+            arg.decoder_weight_path,
+            arg.encoder_weight_path,
+            arg.fov_weight_path,
+            arg.head_weight_path,
+        )?;
 
         Ok(Self {
             model: bm,
@@ -164,38 +150,24 @@ impl<B: Backend> Four<B> {
 
         let [height, width] = inverse_depth.shape().dims();
 
+        let min_indepth_vizu_scalar = min_invdepth_vizu_tensor.into_scalar().to_f32();
+        let max_indepth_vizu_scalar = max_invdepth_vizu_tensor.into_scalar().to_f32();
+
+        let inverse_depth_normalized_tensor =
+            inverse_depth.clone().sub_scalar(min_indepth_vizu_scalar)
+                / (max_indepth_vizu_scalar - min_indepth_vizu_scalar);
+
         let extracted_tensor = Transaction::default()
-            .register(min_invdepth_vizu_tensor)
-            .register(max_invdepth_vizu_tensor)
-            .register(inverse_depth)
+            .register(inverse_depth_normalized_tensor)
             .execute();
 
-        let Some(min_invdepth_vizu) = extracted_tensor
-            .first()
-            .and_then(|t| t.to_vec::<f32>().ok())
-            .and_then(|v| v.first().copied())
-        else {
-            return Err(anyhow!("Unable to get the inverse depth min"));
-        };
-
-        let Some(max_invdepth_vizu) = extracted_tensor
-            .get(1)
-            .and_then(|t| t.to_vec::<f32>().ok())
-            .and_then(|v| v.first().copied())
-        else {
-            return Err(anyhow!("Unable to get the inverse depth max"));
-        };
-
-        let Some(inverse_depth_matrix) = extracted_tensor
+        let Some(inverse_depth_normalized) = extracted_tensor
             .last()
             .and_then(|t| t.to_vec::<f32>().ok())
             .and_then(|t| Array::from_shape_vec((height, width), t).ok())
         else {
             return Err(anyhow!("Unable to get the inverse depth matrix"));
         };
-
-        let inverse_depth_normalized =
-            (inverse_depth_matrix - min_invdepth_vizu) / (max_invdepth_vizu - min_invdepth_vizu);
 
         let inverse_depth_normalized = inverse_depth_normalized.clamp(0., 1.);
 

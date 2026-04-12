@@ -26,7 +26,19 @@ static CONFIG: LazyLock<FourConfig<&'static str>> = LazyLock::new(|| FourConfig 
     encoder_weight_path: "./butter/weights/encoder_only.pt",
     decoder_weight_path: "./butter/weights/decoder_only.pt",
     head_weight_path: "./butter/weights/head.pt",
-    vit_thread_nb: 6,
+    vit_thread_nb: 8,
+});
+
+#[cfg(feature = "f32")]
+static CONFIG_QUANTIZE: LazyLock<FourConfig<&'static str>> = LazyLock::new(|| FourConfig {
+    patch_vit_path: "./butter/onnx_model/depthpro_vit_patch_quantize.onnx",
+    image_vit_path: "./butter/onnx_model/depthpro_vit_image_quantize.onnx",
+    fov_vit_path: "./butter/onnx_model/depthpro_vit_fov_quantize.onnx",
+    fov_weight_path: "./butter/weights/fov_only.pt",
+    encoder_weight_path: "./butter/weights/encoder_only.pt",
+    decoder_weight_path: "./butter/weights/decoder_only.pt",
+    head_weight_path: "./butter/weights/head.pt",
+    vit_thread_nb: 8,
 });
 
 #[cfg(feature = "f16")]
@@ -46,14 +58,22 @@ static CONFIG: LazyLock<FourConfig<&'static str>> = LazyLock::new(|| FourConfig 
 struct Cli {
     #[arg(long, default_value = "./assets/input.jpg")]
     source: String,
+
+    #[arg(long, default_value = "false")]
+    quantize: bool,
 }
 
 fn main() {
     let cli = Cli::parse();
     let t = Instant::now();
 
+    let config = match cli.quantize {
+        true => *CONFIG_QUANTIZE,
+        false => *CONFIG,
+    };
+
     println!("Running sample of loaf 🍞");
-    let four = Four::<Backend>::new::<&'static str>(*CONFIG).unwrap();
+    let four = Four::<Backend>::new::<&'static str>(config).unwrap();
 
     println!("model initialized at {:?}", t.elapsed());
 

@@ -11,4 +11,8 @@ jobs:
       - name: install clippy
         run: rustup component add clippy
       - name: clippy
-        run: cargo clippy --all-features
+        run: cargo clippy
+      - uses: uncenter/setup-taplo@v1
+        with:
+          version: "0.8.1"
+      - run: taplo fmt Cargo.toml --check

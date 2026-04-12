@@ -117,29 +117,39 @@ head_keys = {
     "head.4.bias": "conv2d2.bias",
 }
 
+# Normalize floating-point weights to fp32 for downstream compatibility.
+forced_weight_state = {
+    k: (v.to(dtype=torch.float32) if torch.is_floating_point(v) else v)
+    for k, v in state.items()
+}
+
 if not os.path.exists("./weights"):
     os.makedirs("./weights")
 
 # fov
 print("Exporting fov state...")
-filtered_fov_state = {fov_keys[k]: v for k, v in state.items() if k in fov_keys}
+filtered_fov_state = {
+    fov_keys[k]: v for k, v in forced_weight_state.items() if k in fov_keys
+}
 torch.save(filtered_fov_state, "./weights/fov_only.pt")
 
 # encoder
 print("Exporting encoder state...")
 filtered_encoder_state = {
-    encoder_keys[k]: v for k, v in state.items() if k in encoder_keys
+    encoder_keys[k]: v for k, v in forced_weight_state.items() if k in encoder_keys
 }
 torch.save(filtered_encoder_state, "./weights/encoder_only.pt")
 
 # decoder
 print("Exporting decoder state...")
 filtered_decoder_state = {
-    decoder_keys[k]: v for k, v in state.items() if k in decoder_keys
+    decoder_keys[k]: v for k, v in forced_weight_state.items() if k in decoder_keys
 }
 torch.save(filtered_decoder_state, "./weights/decoder_only.pt")
 
 # head
 print("Exporting head state...")
-filtered_head_state = {head_keys[k]: v for k, v in state.items() if k in head_keys}
+filtered_head_state = {
+    head_keys[k]: v for k, v in forced_weight_state.items() if k in head_keys
+}
 torch.save(filtered_head_state, "./weights/head.pt")

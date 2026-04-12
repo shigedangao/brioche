@@ -44,7 +44,7 @@ impl<B: Backend> SequentialFovNetwork0<B> {
         Self {
             conv: Conv2dConfig::new([num_features, num_features / 2], [3, 3])
                 .with_stride([2, 2])
-                .with_padding(PaddingConfig2d::Explicit(1, 1))
+                .with_padding(PaddingConfig2d::Explicit(1, 1, 1, 1))
                 .init::<B>(device),
             relu: Relu::new(),
         }
@@ -82,17 +82,17 @@ impl<B: Backend> SequentialFovNetwork<B> {
             fov_head0,
             conv64: Conv2dConfig::new([num_features / 2, num_features / 4], [3, 3])
                 .with_stride([2, 2])
-                .with_padding(PaddingConfig2d::Explicit(1, 1))
+                .with_padding(PaddingConfig2d::Explicit(1, 1, 1, 1))
                 .init::<B>(device),
             relu64: Relu::new(),
             conv32: Conv2dConfig::new([num_features / 4, num_features / 8], [3, 3])
                 .with_stride([2, 2])
-                .with_padding(PaddingConfig2d::Explicit(1, 1))
+                .with_padding(PaddingConfig2d::Explicit(1, 1, 1, 1))
                 .init::<B>(device),
             relu32: Relu::new(),
             conv16: Conv2dConfig::new([num_features / 8, 1], [6, 6])
                 .with_stride([1, 1])
-                .with_padding(PaddingConfig2d::Explicit(0, 0))
+                .with_padding(PaddingConfig2d::Explicit(0, 0, 0, 0))
                 .init::<B>(device),
         }
     }
