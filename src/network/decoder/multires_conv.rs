@@ -196,7 +196,7 @@ mod tests {
             &device,
         )
         .unwrap()
-        .with_record("/Users/marcintha/workspace/brioche/butter/decoder_only.pt")
+        .with_record("butter/weights/decoder_only.pt")
         .unwrap();
 
         decoder

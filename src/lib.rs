@@ -166,10 +166,10 @@ impl<B: Backend> Brioche<B> {
         let f_px = 0.5 * w as f32 / (fov_deg_to_rad * 0.5).tan();
         let mut inverse_depth = canonical_inverse_depth * (w as f32 / f_px.clone());
 
-        let mut f_px_squeeze = None;
-        if f_px.shape().dims() != [1, 1, 1, 1] {
-            f_px_squeeze = Some(f_px.squeeze());
-        }
+        let f_px_squeeze = match f_px.shape().dims() != [1, 1, 1, 1] {
+            true => Some(f_px.squeeze()),
+            false => None,
+        };
 
         if resize {
             let inverse_depth_interpolate_fn = Interpolate2dConfig::new()
