@@ -17,17 +17,28 @@ use burn::backend::Cuda as Backend;
 #[cfg(feature = "rocm")]
 use burn::backend::Rocm as Backend;
 
-#[cfg(feature = "f32")]
-static CONFIG: LazyLock<FourConfig<&'static str>> = LazyLock::new(|| FourConfig {
-    patch_vit_path: "./butter/onnx_model/depthpro_vit_patch.onnx",
-    image_vit_path: "./butter/onnx_model/depthpro_vit_image.onnx",
-    fov_vit_path: "./butter/onnx_model/depthpro_vit_fov.onnx",
-    fov_weight_path: "./butter/weights/fov_only.pt",
-    encoder_weight_path: "./butter/weights/encoder_only.pt",
-    decoder_weight_path: "./butter/weights/decoder_only.pt",
-    head_weight_path: "./butter/weights/head.pt",
-    vit_thread_nb: 8,
-});
+static CONFIG: LazyLock<FourConfig<&'static str>> = cfg_select! {
+    feature = "f32" => LazyLock::new(|| FourConfig {
+        patch_vit_path: "./butter/onnx_model/depthpro_vit_patch.onnx",
+        image_vit_path: "./butter/onnx_model/depthpro_vit_image.onnx",
+        fov_vit_path: "./butter/onnx_model/depthpro_vit_fov.onnx",
+        fov_weight_path: "./butter/weights/fov_only.pt",
+        encoder_weight_path: "./butter/weights/encoder_only.pt",
+        decoder_weight_path: "./butter/weights/decoder_only.pt",
+        head_weight_path: "./butter/weights/head.pt",
+        vit_thread_nb: 8,
+    }),
+    feature = "f16" => LazyLock::new(|| FourConfig {
+        patch_vit_path: "./butter/onnx_model/depthpro_vit_patch_f16.onnx",
+        image_vit_path: "./butter/onnx_model/depthpro_vit_image_f16.onnx",
+        fov_vit_path: "./butter/onnx_model/depthpro_vit_fov_f16.onnx",
+        fov_weight_path: "./butter/weights/fov_only.pt",
+        encoder_weight_path: "./butter/weights/encoder_only.pt",
+        decoder_weight_path: "./butter/weights/decoder_only.pt",
+        head_weight_path: "./butter/weights/head.pt",
+        vit_thread_nb: 8,
+    }),
+};
 
 #[cfg(feature = "f32")]
 static CONFIG_QUANTIZE: LazyLock<FourConfig<&'static str>> = LazyLock::new(|| FourConfig {
@@ -39,18 +50,6 @@ static CONFIG_QUANTIZE: LazyLock<FourConfig<&'static str>> = LazyLock::new(|| Fo
     decoder_weight_path: "./butter/weights/decoder_only.pt",
     head_weight_path: "./butter/weights/head.pt",
     vit_thread_nb: 8,
-});
-
-#[cfg(feature = "f16")]
-static CONFIG: LazyLock<FourConfig<&'static str>> = LazyLock::new(|| FourConfig {
-    patch_vit_path: "./butter/onnx_model/depthpro_vit_patch_half.onnx",
-    image_vit_path: "./butter/onnx_model/depthpro_vit_image_half.onnx",
-    fov_vit_path: "./butter/onnx_model/depthpro_vit_fov_half.onnx",
-    fov_weight_path: "./butter/weights/fov_only.pt",
-    encoder_weight_path: "./butter/weights/encoder_only.pt",
-    decoder_weight_path: "./butter/weights/decoder_only.pt",
-    head_weight_path: "./butter/weights/head.pt",
-    vit_thread_nb: 6,
 });
 
 #[derive(Parser, Debug, Clone)]
