@@ -153,9 +153,8 @@ impl<B: Backend> Four<B> {
         let min_indepth_vizu_scalar = min_invdepth_vizu_tensor.into_scalar().to_f32();
         let max_indepth_vizu_scalar = max_invdepth_vizu_tensor.into_scalar().to_f32();
 
-        let inverse_depth_normalized_tensor =
-            inverse_depth.clone().sub_scalar(min_indepth_vizu_scalar)
-                / (max_indepth_vizu_scalar - min_indepth_vizu_scalar);
+        let inverse_depth_normalized_tensor = inverse_depth.sub_scalar(min_indepth_vizu_scalar)
+            / (max_indepth_vizu_scalar - min_indepth_vizu_scalar);
 
         let extracted_tensor = Transaction::default()
             .register(inverse_depth_normalized_tensor)

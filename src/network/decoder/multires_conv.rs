@@ -117,14 +117,12 @@ impl<B: Backend> Decoder<B, 4> for MultiResConv<B> {
             .convs
             .last()
             .map(|conv| {
-                (
-                    conv,
-                    encodings
-                        .last()
-                        .expect("Expect to get the last tensor available"),
-                )
+                let encoding = encodings
+                    .last()
+                    .expect("Expect to get the last tensor available");
+
+                conv.forward(encoding.clone())
             })
-            .map(|(conv, encoding)| conv.forward(encoding.clone()))
             .ok_or(anyhow!("Failed to forward the last convolution"))?;
 
         // Make a copy of the low-resolution features
@@ -147,12 +145,13 @@ impl<B: Backend> Decoder<B, 4> for MultiResConv<B> {
 
             let encoding = encodings
                 .get(idx)
-                .ok_or(anyhow!("Unable to get encoding at index {idx}"))?;
+                .ok_or(anyhow!("Unable to get encoding at index {idx}"))?
+                .to_owned();
 
             let features_idx = match conv {
-                Some(cnv) => cnv.forward(encoding.clone()),
+                Some(cnv) => cnv.forward(encoding),
                 // Passthrough
-                None => encoding.clone(),
+                None => encoding,
             };
 
             let fusion = self
