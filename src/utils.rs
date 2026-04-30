@@ -28,11 +28,12 @@ pub fn preprocess_image<B: Backend>(
 ) -> Result<Tensor<B, 3>> {
     let rgb_img = img.to_rgb32f();
     let (width, height) = rgb_img.dimensions();
+    let dim: usize = (width * height) as usize;
 
     // Create a vector to store each channel
-    let mut r_channel = Vec::with_capacity((width * height) as usize);
-    let mut g_channel = Vec::with_capacity((width * height) as usize);
-    let mut b_channel = Vec::with_capacity((width * height) as usize);
+    let mut r_channel = Vec::with_capacity(dim);
+    let mut g_channel = Vec::with_capacity(dim);
+    let mut b_channel = Vec::with_capacity(dim);
 
     for pixel in rgb_img.pixels() {
         r_channel.push(pixel[0]);

@@ -96,39 +96,19 @@ impl<B: Backend> Network<B> for Encoder<B> {
             device,
         );
 
-        let upsample_latent1 = ProjectionSeq::new(
-            patch_encoder_embed_dim,
-            None,
-            dims_encoder.first().copied().unwrap_or_default(),
-            2,
-            device,
-        );
+        let upsample_latent1 =
+            ProjectionSeq::new(patch_encoder_embed_dim, None, dims_encoder[0], 2, device);
 
-        let upsample0 = ProjectionSeq::new(
-            patch_encoder_embed_dim,
-            None,
-            dims_encoder.get(1).copied().unwrap_or_default(),
-            1,
-            device,
-        );
+        let upsample0 =
+            ProjectionSeq::new(patch_encoder_embed_dim, None, dims_encoder[1], 1, device);
 
-        let upsample1 = ProjectionSeq::new(
-            patch_encoder_embed_dim,
-            None,
-            dims_encoder.get(2).copied().unwrap_or_default(),
-            1,
-            device,
-        );
+        let upsample1 =
+            ProjectionSeq::new(patch_encoder_embed_dim, None, dims_encoder[2], 1, device);
 
-        let upsample2 = ProjectionSeq::new(
-            patch_encoder_embed_dim,
-            None,
-            dims_encoder.get(3).copied().unwrap_or_default(),
-            1,
-            device,
-        );
+        let upsample2 =
+            ProjectionSeq::new(patch_encoder_embed_dim, None, dims_encoder[3], 1, device);
 
-        let dims_encoder_three = dims_encoder.get(3).copied().unwrap_or_default();
+        let dims_encoder_three = dims_encoder[3];
 
         let upsample_lowres =
             ConvTranspose2dConfig::new([image_encoder_embed_dim, dims_encoder_three], [2, 2])

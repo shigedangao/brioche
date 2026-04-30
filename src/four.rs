@@ -11,9 +11,10 @@ use crate::vit::{common::CommonVitModel, patch::PatchVitModel};
 use crate::vit::{common_burn::CommonVitModel, patch_burn::PatchVitModel};
 use crate::{vit, vit::VitOps};
 use anyhow::{Result, anyhow};
-use burn::prelude::ToElement;
-use burn::tensor::Transaction;
-use burn::{prelude::Backend, tensor::Tensor};
+use burn::{
+    prelude::{Backend, ToElement},
+    tensor::{Tensor, Transaction},
+};
 use image::{ImageBuffer, Rgb};
 use ndarray::Array;
 use std::path::PathBuf;

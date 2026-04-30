@@ -66,22 +66,12 @@ impl<B: Backend> Network<B> for BriocheSeq<B> {
             .with_bias(true)
             .init::<B>(device);
 
-        let mut conv2d2 = Conv2dConfig::new([last_dims.0, last_dims.1], [1, 1])
+        let conv2d2 = Conv2dConfig::new([last_dims.0, last_dims.1], [1, 1])
             .with_stride([1, 1])
             .with_padding(PaddingConfig2d::Explicit(0, 0, 0, 0))
             .with_bias(true)
+            .with_initializer(burn::nn::Initializer::Ones)
             .init::<B>(device);
-
-        // Set the final convolution layer's bias to be 0.
-        if let Some(bias) = &mut conv2d2.bias {
-            let res = bias.clone().map(|t| {
-                let req = t.is_require_grad();
-                // Fresh zeros tensor, same shape/device as the existing bias
-                Tensor::<B, 1>::zeros(t.dims(), &t.device()).set_require_grad(req)
-            });
-
-            *bias = res;
-        }
 
         Ok(Self {
             conv2d0,
