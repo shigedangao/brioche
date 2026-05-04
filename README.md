@@ -97,6 +97,7 @@ This project is not production ready. It's a work that is done for educational p
 | MacBook Pro M1 Pro    | Full Precision (ort)  | 125      |
 | MacBook Pro M1 Pro    | Half Precision (ort)  | 141      |
 | MacBook Pro M1 Pro    | Half Precision (burn) | 122      |
+| MacBook Pro M1 Pro    | Full Precision (burn) | 123      |
 | MacBook Pro M1 Pro    | Quantize model (ort)  | 107      |
 | MacBook Pro M4 Pro    | Full Precision (ort)  | 32       |
 | MacBook Pro M4 Pro    | Quantize model (ort)  | 30       |

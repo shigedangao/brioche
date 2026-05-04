@@ -19,7 +19,7 @@ impl<B: Backend> VitOps<B> for PatchVitModel {
     fn forward<F: crate::MixedFloats>(
         &mut self,
         input: burn::Tensor<B, 4>,
-        _: &<B as Backend>::Device,
+        _: &B::Device,
     ) -> Result<super::VitResult<B>> {
         let model = Model::<B>::default();
 

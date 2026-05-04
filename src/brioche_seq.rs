@@ -34,7 +34,7 @@ impl<B: Backend> Network<B> for BriocheSeq<B> {
     /// * dim_decoder - usize
     /// * last_dims - (usize, usize)
     /// * device: &B::Device
-    fn new(config: NetworkConfig, device: &<B as Backend>::Device) -> Result<Self>
+    fn new(config: NetworkConfig, device: &B::Device) -> Result<Self>
     where
         Self: Sized,
     {

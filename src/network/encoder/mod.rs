@@ -307,9 +307,10 @@ impl<B: Backend> Encoder<B> {
         let x1_patches = self.split(x1, compute_patch_stride(0.5))?;
 
         // These 3 variables are the batch sizes of the patches. Use them to split the patches into chunks.
-        let x0_b = x0_patches.shape().first().copied().unwrap_or_default();
-        let x1_b = x1_patches.shape().first().copied().unwrap_or_default();
-        let x2_b = x2_patches.shape().first().copied().unwrap_or_default();
+        // We can retrieve the access the dim of the tensor as there will always be a batch dimension.
+        let x0_b = x0_patches.dims()[0];
+        let x1_b = x1_patches.dims()[0];
+        let x2_b = x2_patches.dims()[0];
 
         // Concatenate all the sliding window patches and form a batch of size (35=5x5+3x3+1x1).
         let x_pyramid_patches = Tensor::cat(vec![x0_patches, x1_patches, x2_patches.clone()], 0);

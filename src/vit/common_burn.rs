@@ -30,7 +30,7 @@ impl<B: Backend> VitOps<B> for CommonVitModel {
     fn forward<F: crate::MixedFloats>(
         &mut self,
         input: burn::Tensor<B, 4>,
-        _: &<B as Backend>::Device,
+        _: &B::Device,
     ) -> Result<super::VitResult<B>> {
         let tensor = match self.kind {
             CommonVitModelList::Fov => FovModel::<B>::default().forward(input),

@@ -50,13 +50,9 @@ pub fn preprocess_image<B: Backend>(
     let tensor_data = TensorData::new(pixels, [3, height as usize, width as usize]);
     let tensor = Tensor::from_floats(tensor_data, device);
 
-    // Create mean and std as 1D tensors
-    let mean = Tensor::<B, 1>::from_floats([0.5, 0.5, 0.5], device);
-    let std = Tensor::<B, 1>::from_floats([0.5, 0.5, 0.5], device);
-
-    // Reshape to (3, 1, 1) for broadcasting across H and W dimensions
-    let mean = mean.reshape([3, 1, 1]);
-    let std = std.reshape([3, 1, 1]);
+    // Create mean and std as 1D tensors & reshape to (3, 1, 1) for broadcasting across H and W dimensions
+    let mean = Tensor::<B, 1>::from_floats([0.5, 0.5, 0.5], device).reshape([3, 1, 1]);
+    let std = Tensor::<B, 1>::from_floats([0.5, 0.5, 0.5], device).reshape([3, 1, 1]);
 
     // normalize the tensor
     let mut tensor = (tensor - mean) / std;
