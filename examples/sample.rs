@@ -29,9 +29,9 @@ static CONFIG: LazyLock<FourConfig<&'static str>> = cfg_select! {
         vit_thread_nb: 8,
     }),
     feature = "f16" => LazyLock::new(|| FourConfig {
-        patch_vit_path: "./butter/onnx_model/depthpro_vit_patch_f16.onnx",
-        image_vit_path: "./butter/onnx_model/depthpro_vit_image_f16.onnx",
-        fov_vit_path: "./butter/onnx_model/depthpro_vit_fov_f16.onnx",
+        patch_vit_path: "./butter/onnx_model/depthpro_vit_patch_half.onnx",
+        image_vit_path: "./butter/onnx_model/depthpro_vit_image_half.onnx",
+        fov_vit_path: "./butter/onnx_model/depthpro_vit_fov_half.onnx",
         fov_weight_path: "./butter/weights/fov_only.pt",
         encoder_weight_path: "./butter/weights/encoder_only.pt",
         decoder_weight_path: "./butter/weights/decoder_only.pt",
@@ -40,7 +40,6 @@ static CONFIG: LazyLock<FourConfig<&'static str>> = cfg_select! {
     }),
 };
 
-#[cfg(feature = "f32")]
 static CONFIG_QUANTIZE: LazyLock<FourConfig<&'static str>> = LazyLock::new(|| FourConfig {
     patch_vit_path: "./butter/onnx_model/depthpro_vit_patch_quantize.onnx",
     image_vit_path: "./butter/onnx_model/depthpro_vit_image_quantize.onnx",

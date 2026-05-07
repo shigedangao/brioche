@@ -5,13 +5,13 @@ version = "0.1.0"
 
 [dependencies]
 anyhow = { version = "1.0.100" }
-burn = { version = "0.21.0-pre.4", features = [
+burn = { version = "0.21.0-pre.5", features = [
   "std",
   "wgpu",
   "fusion",
   "record-item-custom-serde",
 ], default-features = false }
-burn-store = { version = "0.21.0-pre.4" }
+burn-store = { version = "0.21.0-pre.5" }
 colorgrad = { version = "0.8.0", features = ["preset"] }
 image = { version = "0.25.10" }
 ndarray = { version = "0.17.2" }
@@ -50,4 +50,4 @@ inherits = "release"
 lto = true
 
 [build-dependencies]
-burn-onnx = { version = "0.21.0-pre.4", optional = true }
+burn-onnx = { version = "0.21.0-pre.5", optional = true }

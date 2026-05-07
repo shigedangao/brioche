@@ -80,7 +80,7 @@ impl<B: Backend> Four<B> {
     /// * `image_vit_path` - Path to the image vit model
     /// * `vit_thread_nb` - Number of threads to use for vit models
     /// * `device` - Device to use for the model
-    pub fn new<S: AsRef<str> + Clone>(arg: FourConfig<S>) -> Result<Self> {
+    pub fn new<S: AsRef<str> + Clone + Send + Sync>(arg: FourConfig<S>) -> Result<Self> {
         let (patch_model, fov_model, image_model) = vit::utils::load_models(arg.clone())?;
         let gpu_device = Default::default();
 

@@ -4,6 +4,7 @@ use anyhow::Result;
 use burn::{Tensor, prelude::Backend};
 #[cfg(feature = "ort_onnx")]
 use ort::value::Shape;
+use std::thread;
 
 #[cfg(feature = "ort_onnx")]
 pub mod common;
@@ -119,21 +120,44 @@ pub(crate) mod utils {
     }
 
     #[cfg(feature = "ort_onnx")]
-    pub fn load_models<S: AsRef<str> + Clone>(
+    pub fn load_models<S: AsRef<str> + Clone + Send + Sync>(
         config: FourConfig<S>,
     ) -> Result<(PatchVitModel, CommonVitModel, CommonVitModel)> {
-        let patch_model = PatchVitModel::new(
-            std::path::PathBuf::from(config.patch_vit_path.as_ref()),
-            config.vit_thread_nb,
-        )?;
-        let fov_model = CommonVitModel::new(
-            std::path::PathBuf::from(config.fov_vit_path.as_ref()),
-            config.vit_thread_nb,
-        )?;
-        let image_model = CommonVitModel::new(
-            std::path::PathBuf::from(config.image_vit_path.as_ref()),
-            config.vit_thread_nb,
-        )?;
+        let handles = thread::scope(|scope| {
+            let patch_model = scope.spawn(|| {
+                PatchVitModel::new(
+                    std::path::PathBuf::from(config.patch_vit_path.as_ref()),
+                    config.vit_thread_nb,
+                )
+            });
+
+            let fov_model = scope.spawn(|| {
+                CommonVitModel::new(
+                    std::path::PathBuf::from(config.fov_vit_path.as_ref()),
+                    config.vit_thread_nb,
+                )
+            });
+
+            let image_model = scope.spawn(|| {
+                CommonVitModel::new(
+                    std::path::PathBuf::from(config.image_vit_path.as_ref()),
+                    config.vit_thread_nb,
+                )
+            });
+
+            (patch_model.join(), fov_model.join(), image_model.join())
+        });
+
+        let (p_handle, f_handle, i_handle) = handles;
+
+        let patch_model =
+            p_handle.map_err(|_| anyhow::anyhow!("Unable to get the handle for patch model"))??;
+
+        let fov_model =
+            f_handle.map_err(|_| anyhow::anyhow!("Unable to get the handle for fov model"))??;
+
+        let image_model =
+            i_handle.map_err(|_| anyhow::anyhow!("Unable to get the handle for image model"))??;
 
         Ok((patch_model, fov_model, image_model))
     }

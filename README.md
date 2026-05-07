@@ -63,7 +63,7 @@ uv run vit_exporter.py --checkpoint-path ./depth_pro.pt --half
 Once it's done. You can use the following command to run the sample which uses the **half precision (f16)**, by running the following command:
 
 ```sh
-cargo run --release --example sample_metal --features="metal,f16" --no-default-features
+cargo run --example sample_metal --features="metal,f16,ort_onnx" --profile release-lto --no-default-features
 ```
 
 ## Run with burn-onnx
