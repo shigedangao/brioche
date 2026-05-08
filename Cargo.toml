@@ -5,13 +5,14 @@ version = "0.1.0"
 
 [dependencies]
 anyhow = { version = "1.0.100" }
-burn = { version = "0.21.0-pre.5", features = [
+burn = { version = "0.21.0", features = [
   "std",
   "wgpu",
+  "flex",
   "fusion",
   "record-item-custom-serde",
 ], default-features = false }
-burn-store = { version = "0.21.0-pre.5" }
+burn-store = { version = "0.21.0" }
 colorgrad = { version = "0.8.0", features = ["preset"] }
 image = { version = "0.25.10" }
 ndarray = { version = "0.17.2" }
