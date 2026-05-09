@@ -80,9 +80,8 @@ impl<B: Backend> Network<B> for MultiResConv<B> {
 
 impl<B: Backend> Decoder<B, 4> for MultiResConv<B> {
     fn forward(&self, input: DecoderType<B>) -> Result<DecoderOutput<B>> {
-        let encodings = match input {
-            DecoderType::MultiResConv(arg) => arg,
-            _ => return Err(anyhow!("Invalid input type")),
+        let DecoderType::MultiResConv(encodings) = input else {
+            return Err(anyhow!("Invalid input type"));
         };
 
         if encodings.len() != self.dims_encoder_len {
@@ -105,7 +104,7 @@ impl<B: Backend> Decoder<B, 4> for MultiResConv<B> {
             // Push the first element as None
             reprocessed_convs.push(None);
 
-            for conv in self.convs.iter() {
+            for conv in &self.convs {
                 reprocessed_convs.push(Some(conv));
             }
         }
@@ -149,7 +148,7 @@ impl<B: Backend> Decoder<B, 4> for MultiResConv<B> {
                 .to_owned();
 
             let features_idx = match conv {
-                Some(cnv) => cnv.forward(encoding),
+                Some(c) => c.forward(encoding),
                 // Passthrough
                 None => encoding,
             };

@@ -80,8 +80,14 @@ impl<B: Backend> Four<B> {
     /// * `image_vit_path` - Path to the image vit model
     /// * `vit_thread_nb` - Number of threads to use for vit models
     /// * `device` - Device to use for the model
+    ///
+    /// # Errors
+    /// Returns an error if the model cannot be loaded.
+    ///
+    /// # Returns
+    /// Returns a new `Four` instance if successful, otherwise an error.
     pub fn new<S: AsRef<str> + Clone + Send + Sync>(arg: FourConfig<S>) -> Result<Self> {
-        let (patch_model, fov_model, image_model) = vit::utils::load_models(arg.clone())?;
+        let (patch_model, fov_model, image_model) = vit::utils::load_models(&arg)?;
         let gpu_device = Default::default();
 
         // Create the brioche (depth-pro)model
@@ -109,6 +115,13 @@ impl<B: Backend> Four<B> {
     }
 
     /// Four run the brioche (depth-pro) model and export the output image into a buffer
+    ///
+    /// # Arguments
+    /// * `image_path` - Path to the image to run the model on
+    /// * `is_half_precision` - Whether to use half precision for the model
+    ///
+    /// # Errors
+    /// Returns an error if the model cannot be run or the image cannot be loaded.
     pub fn run<S: AsRef<str>, F: MixedFloats>(
         mut self,
         image_path: S,
@@ -116,14 +129,14 @@ impl<B: Backend> Four<B> {
     ) -> Result<InferenceOutput<B>> {
         let img = image::open(PathBuf::from(image_path.as_ref()))
             .map_err(|err| anyhow!("Unable to load the image due to {err}"))?;
-        let input = utils::preprocess_image::<B>(&img, &self.gpu_device, is_half_precision)
-            .map_err(|err| anyhow!("Unable to preprocess the image due to {err}"))?;
+
+        let input = utils::preprocess_image::<B>(&img, &self.gpu_device, is_half_precision);
 
         // Rescale at the beginning in order to speed up a little bit the inference
-        let rescale_input = utils::rescale_image(&img, FOV_ENCODER_IMG_SIZE as u32);
+        let rescale_input = utils::rescale_image(&img, u32::try_from(FOV_ENCODER_IMG_SIZE)?);
+
         let fov_input_tensor =
-            utils::preprocess_image::<B>(&rescale_input, &self.gpu_device, is_half_precision)
-                .map_err(|err| anyhow!("Unable to preprocess the image due to {err}"))?;
+            utils::preprocess_image::<B>(&rescale_input, &self.gpu_device, is_half_precision);
 
         let fov_result = self
             .fov_model
@@ -172,10 +185,12 @@ impl<B: Backend> Four<B> {
         let inverse_depth_normalized = inverse_depth_normalized.clamp(0., 1.);
 
         let cmap_matrix = utils::cmap(&inverse_depth_normalized);
-        let cmap_matrix = utils::drop_alpha(cmap_matrix);
+        let cmap_matrix = utils::drop_alpha(&cmap_matrix);
 
         let (raw_vec, _) = cmap_matrix.into_raw_vec_and_offset();
-        let Some(img_buffer) = ImageBuffer::from_raw(width as u32, height as u32, raw_vec) else {
+        let Some(img_buffer) =
+            ImageBuffer::from_raw(u32::try_from(width)?, u32::try_from(height)?, raw_vec)
+        else {
             return Err(anyhow!("Unable to create image buffer"));
         };
 

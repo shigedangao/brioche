@@ -39,7 +39,7 @@ impl<B: Backend> VitOps<B> for PatchVitModel {
         device: &B::Device,
     ) -> Result<VitResult<B>, anyhow::Error> {
         let data = input.into_data().to_vec().map_err(|err| {
-            anyhow::anyhow!("Unable to convert the tensor to a vector due to {:?}", err)
+            anyhow::anyhow!("Unable to convert the tensor to a vector due to {err}")
         })?;
 
         let ort_tensor: OrtTensor<F> = OrtTensor::from_array(([35, 3, 384, 384], data))?;

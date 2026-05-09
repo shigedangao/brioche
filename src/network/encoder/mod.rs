@@ -27,14 +27,14 @@ const PATCH_SIZE: usize = 384;
 //
 // # Arguments
 // * `overlap_ratio` - The overlap ratio between patches.
-const fn compute_patch_stride(overlap_ratio: f64) -> usize {
-    (PATCH_SIZE as f64 * (1. - overlap_ratio)) as usize
+const fn compute_patch_stride(overlap_ratio: f64) -> f64 {
+    PATCH_SIZE as f64 * (1. - overlap_ratio)
 }
 
 /// Encoder represent the depth-pro encoder. The implementation refer to the following original python file
-/// @link https://github.com/apple/ml-depth-pro/blob/9efe5c1def37a26c5367a71df664b18e1306c708/src/depth_pro/network/encoder.py#L14
+/// @link <https://github.com/apple/ml-depth-pro/blob/9efe5c1def37a26c5367a71df664b18e1306c708/src/depth_pro/network/encoder.py#L14>
 ///
-/// /!\ In the depth-pro implementation. Most of the upsample layers are represented by an array of a mix of Conv2d and ConvTranspose2d layers. As in Rust this is not possible to perform that. We wrap this operation in a ProjectionSeq struct.
+/// /!\ In the depth-pro implementation. Most of the upsample layers are represented by an array of a mix of `Conv2d` and `ConvTranspose2d` layers. As in Rust this is not possible to perform that. We wrap this operation in a `ProjectionSeq` struct.
 #[derive(Debug, Module)]
 pub struct Encoder<B: Backend> {
     upsample_latent0: ProjectionSeq<B>,
@@ -49,11 +49,11 @@ pub struct Encoder<B: Backend> {
 
 #[derive(Debug)]
 pub struct EncoderOutput<B: Backend> {
-    pub x_latent0_features: Tensor<B, 4>,
-    pub x_latent1_features: Tensor<B, 4>,
-    pub x0_features: Tensor<B, 4>,
-    pub x1_features: Tensor<B, 4>,
-    pub x_global_features: Tensor<B, 4>,
+    pub x_latent0: Tensor<B, 4>,
+    pub x_latent1: Tensor<B, 4>,
+    pub x0: Tensor<B, 4>,
+    pub x1: Tensor<B, 4>,
+    pub x: Tensor<B, 4>,
 }
 
 #[derive(Debug, Default)]
@@ -144,7 +144,7 @@ impl<B: Backend> Encoder<B> {
     ///
     /// # Arguments
     /// * `x` - The input tensor.
-    fn create_pyramid(&self, x: Tensor<B, 4>) -> (Tensor<B, 4>, Tensor<B, 4>, Tensor<B, 4>) {
+    fn create_pyramid(x: Tensor<B, 4>) -> (Tensor<B, 4>, Tensor<B, 4>, Tensor<B, 4>) {
         let x1_interpolate = Interpolate2dConfig::new()
             .with_scale_factor(Some([0.5, 0.5]))
             .with_mode(InterpolateMode::Linear)
@@ -172,7 +172,7 @@ impl<B: Backend> Encoder<B> {
     /// # Arguments
     /// * `input` - The input tensor.
     /// * `patch_stride` - The patch stride.
-    fn split(&self, input: Tensor<B, 4>, patch_stride: usize) -> Result<Tensor<B, 4>> {
+    fn split(input: &Tensor<B, 4>, patch_stride: f64) -> Result<Tensor<B, 4>> {
         let Some(ref image_size) = input.shape().last().copied() else {
             return Err(anyhow!(
                 "Unable to get the image size from the shape of the tensor"
@@ -181,18 +181,19 @@ impl<B: Backend> Encoder<B> {
 
         let [batch, chan, _, _] = input.dims();
         // We're allowing manual div ceil as otherwise this will result in a different tensor shape.
+        let pp_usize = patch_stride as usize;
         #[allow(clippy::manual_div_ceil)]
-        let steps = (image_size - PATCH_SIZE + patch_stride - 1) / patch_stride + 1;
+        let steps = (image_size - PATCH_SIZE + pp_usize - 1) / pp_usize + 1;
 
         let mut patches = Vec::with_capacity(steps * steps);
         // process height
         for j in 0..steps {
-            let j0 = j * patch_stride;
+            let j0 = j * pp_usize;
             let j1 = j0 + PATCH_SIZE;
 
             // process width
             for i in 0..steps {
-                let i0 = i * patch_stride;
+                let i0 = i * pp_usize;
                 let i1 = i0 + PATCH_SIZE;
 
                 let patch = input.clone().slice([0..batch, 0..chan, j0..j1, i0..i1]);
@@ -209,12 +210,7 @@ impl<B: Backend> Encoder<B> {
     /// * `input` - The input tensor.
     /// * `width` - The width of the feature map.
     /// * `height` - The height of the feature map.
-    fn reshape_feature(
-        &self,
-        embeddings: Tensor<B, 3>,
-        width: usize,
-        height: usize,
-    ) -> Tensor<B, 4> {
+    fn reshape_feature(embeddings: Tensor<B, 3>, width: usize, height: usize) -> Tensor<B, 4> {
         let [batch, hw, ch] = embeddings.shape().dims();
 
         let embeddings_slice = embeddings.slice([0..batch, 1..hw, 0..ch]);
@@ -230,12 +226,7 @@ impl<B: Backend> Encoder<B> {
     /// * `input` - The input tensor.
     /// * `batch_size` - The batch size.
     /// * `padding` - The padding.
-    fn merge(
-        &self,
-        input: &Tensor<B, 4>,
-        batch_size: usize,
-        padding: usize,
-    ) -> Result<Tensor<B, 4>> {
+    fn merge(input: &Tensor<B, 4>, batch_size: usize, padding: usize) -> Tensor<B, 4> {
         let [b, chan, height, width] = input.shape().dims();
 
         let steps = (b / batch_size).isqrt();
@@ -260,8 +251,8 @@ impl<B: Backend> Encoder<B> {
                 let h_start = if j != 0 { padding } else { 0 };
                 let w_start = if i != 0 { padding } else { 0 };
 
-                let h_end = if j != steps - 1 { oh - padding } else { oh };
-                let w_end = if i != steps - 1 { ow - padding } else { ow };
+                let h_end = if j == steps - 1 { oh } else { oh - padding };
+                let w_end = if i == steps - 1 { ow } else { ow - padding };
 
                 output = output.slice([0..ob, 0..oc, h_start..h_end, w_start..w_end]);
 
@@ -274,7 +265,7 @@ impl<B: Backend> Encoder<B> {
             output_list.push(output_row);
         }
 
-        Ok(Tensor::cat(output_list, 2))
+        Tensor::cat(output_list, 2)
     }
 
     /// Compute the forward pass of the encoder.
@@ -297,14 +288,14 @@ impl<B: Backend> Encoder<B> {
 
         // Step 0: create a 3-level image pyramid.
         // x2_patches -> 1x1 # 384x384 at the lowest resolution (384x384).
-        let (x0, x1, x2_patches) = self.create_pyramid(input);
+        let (x0, x1, x2_patches) = Self::create_pyramid(input);
 
         // Step 1: split to create batched overlapped mini-images at the backbone (BeiT/ViT/Dino)
         // resolution.
         // 5x5 @ 384x384 at the highest resolution (1536x1536).
-        let x0_patches = self.split(x0, compute_patch_stride(0.25))?;
+        let x0_patches = Self::split(&x0, compute_patch_stride(0.25))?;
         // 3x3 @ 384x384 at the middle resolution (768x768).
-        let x1_patches = self.split(x1, compute_patch_stride(0.5))?;
+        let x1_patches = Self::split(&x1, compute_patch_stride(0.5))?;
 
         // These 3 variables are the batch sizes of the patches. Use them to split the patches into chunks.
         // We can retrieve the access the dim of the tensor as there will always be a batch dimension.
@@ -320,7 +311,7 @@ impl<B: Backend> Encoder<B> {
             .forward::<F>(x_pyramid_patches, device)
             .map(|x| {
                 (
-                    self.reshape_feature(x.tensor, self.out_size, self.out_size),
+                    Self::reshape_feature(x.tensor, self.out_size, self.out_size),
                     x.hooks0,
                     x.hooks1,
                 )
@@ -336,25 +327,25 @@ impl<B: Backend> Encoder<B> {
         let target_batch_size = batch_size * 5 * 5;
 
         let x_latent0_encodings =
-            self.reshape_feature(bb_highres_hook0.unwrap(), self.out_size, self.out_size);
+            Self::reshape_feature(bb_highres_hook0.unwrap(), self.out_size, self.out_size);
         let [x0, c0, h0, w0] = x_latent0_encodings.shape().dims();
 
         // Using target_batch_size.min(w0) for width in order not to exceed the batch size
-        let x0_latent_features = self.merge(
+        let x0_latent_features = Self::merge(
             &x_latent0_encodings.slice([0..target_batch_size.min(x0), 0..c0, 0..h0, 0..w0]),
             batch_size,
             3,
-        )?;
+        );
 
         // Using target_batch_size.min(w1) for width in order not to exceed the batch size
         let x_latent1_encodings =
-            self.reshape_feature(bb_highres_hook1.unwrap(), self.out_size, self.out_size);
+            Self::reshape_feature(bb_highres_hook1.unwrap(), self.out_size, self.out_size);
         let [x1, c1, h1, w1] = x_latent1_encodings.shape().dims();
-        let x1_latent_features = self.merge(
+        let x1_latent_features = Self::merge(
             &x_latent1_encodings.slice([0..target_batch_size.min(x1), 0..c1, 0..h1, 0..w1]),
             batch_size,
             3,
-        )?;
+        );
 
         // Split the 35 batch size from pyramid encoding back into 5x5+3x3+1x1.
         let chunks = x_pyramid_encoding.split_with_sizes(vec![x0_b, x1_b, x2_b], 0);
@@ -363,9 +354,9 @@ impl<B: Backend> Encoder<B> {
         };
 
         // 96x96 feature maps by merging 5x5 @ 24x24 patches with overlaps.
-        let x0_features = self.merge(x0_encodings, batch_size, 3)?;
+        let x0_features = Self::merge(x0_encodings, batch_size, 3);
         //  48x84 feature maps by merging 3x3 @ 24x24 patches with overlaps.
-        let x1_features = self.merge(x1_encodings, batch_size, 6)?;
+        let x1_features = Self::merge(x1_encodings, batch_size, 6);
         // 24x24 feature maps.
         let x2_features = x2_encodings.clone();
 
@@ -375,7 +366,7 @@ impl<B: Backend> Encoder<B> {
             .map_err(|err| anyhow!("Unable to perform the forward of the image encoder: {err}"))?;
 
         let x_global_features =
-            self.reshape_feature(x_global_features.tensor, self.out_size, self.out_size);
+            Self::reshape_feature(x_global_features.tensor, self.out_size, self.out_size);
 
         // Upsample feature maps.
         let x_latent0_features = self.upsample_latent0.forward(x0_latent_features);
@@ -393,11 +384,11 @@ impl<B: Backend> Encoder<B> {
         ));
 
         Ok(EncoderOutput {
-            x_latent0_features,
-            x_latent1_features,
-            x0_features: x0_features_upsampled,
-            x1_features: x1_features_upsampled,
-            x_global_features,
+            x_latent0: x_latent0_features,
+            x_latent1: x_latent1_features,
+            x0: x0_features_upsampled,
+            x1: x1_features_upsampled,
+            x: x_global_features,
         })
     }
 }

@@ -36,7 +36,7 @@ mod vit;
 #[cfg(feature = "burn_onnx")]
 mod model;
 
-/// MixedFloats is a trait that defines a type that can be used as a placeholder to support F32 & F16 float types.
+/// `MixedFloats` is a trait that defines a type that can be used as a placeholder to support F32 & F16 float types.
 #[cfg(feature = "ort_onnx")]
 pub trait MixedFloats: FloatElement + PrimitiveTensorElementType {}
 #[cfg(feature = "burn_onnx")]
@@ -54,7 +54,7 @@ const CLAMP_MAX: f32 = 1e4;
 
 /// Brioche is a struct which implements the Depth-pro main class. The implementation refer to the one below
 ///
-/// @link https://github.com/apple/ml-depth-pro/blob/9efe5c1def37a26c5367a71df664b18e1306c708/src/depth_pro/depth_pro.py#L157
+/// @link <https://github.com/apple/ml-depth-pro/blob/9efe5c1def37a26c5367a71df664b18e1306c708/src/depth_pro/depth_pro.py#L157>
 #[derive(Debug, Module)]
 pub struct Brioche<B: Backend> {
     head: BriocheSeq<B>,
@@ -64,6 +64,23 @@ pub struct Brioche<B: Backend> {
 }
 
 impl<B: Backend> Brioche<B> {
+    /// Creates a new `Brioche` instance with the given configuration.
+    ///
+    /// # Arguments
+    ///
+    /// * `encoder_config` - Configuration for the encoder.
+    /// * `decoder_config` - Configuration for the decoder.
+    /// * `fov_config` - Configuration for the fov.
+    /// * `head_config` - Configuration for the head.
+    /// * `device` - The device to use for the model.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the model cannot be created.
+    ///
+    /// # Returns
+    ///
+    /// A new `Brioche` instance.
     pub fn new(
         encoder_config: EncoderConfig,
         decoder_config: MultiResDecoderConfig,
@@ -88,6 +105,14 @@ impl<B: Backend> Brioche<B> {
     /// * `fov_weight_path` - Path to the fov weights.
     /// * `head_weight_path` - Path to the head weights.
     /// * `device` - Device to load the weights onto.
+    ///
+    /// # Error
+    ///
+    /// Returns an error if the weights cannot be loaded from the given paths.
+    ///
+    /// # Result
+    ///
+    /// Returns the updated model with the weights loaded from the given paths.
     pub fn with_record<S: AsRef<str>>(
         mut self,
         decoder_weight_path: S,
@@ -111,7 +136,7 @@ impl<B: Backend> Brioche<B> {
     }
 
     /// Infer the model for the given input tensor.
-    /// /!\ For a trial implementation the "f_px" parameter is not taken into account.
+    /// /!\ For a trial implementation the "`f_px`" parameter is not taken into account.
     ///
     /// # Arguments
     /// * `input` - The input tensor.
@@ -188,7 +213,7 @@ impl<B: Backend> Brioche<B> {
     /// Forward pass of the Brioche model.
     ///
     /// # Arguments
-    /// * `input` - Input tensor of shape [batch_size, channels, height, width].
+    /// * `input` - Input tensor of shape [`batch_size`, `channels`, `height`, `width`].
     /// * `device` - Device to run the model on.
     /// * `patch_encoder` - Patch encoder model.
     /// * `image_encoder` - Image encoder model.
@@ -218,11 +243,11 @@ impl<B: Backend> Brioche<B> {
             .forward::<F>(input, patch_encoder, image_encoder, device)?;
 
         let (features, features_0) = self.decoder.forward(DecoderType::MultiResConv(vec![
-            encodings.x_latent0_features,
-            encodings.x_latent1_features,
-            encodings.x0_features,
-            encodings.x1_features,
-            encodings.x_global_features,
+            encodings.x_latent0,
+            encodings.x_latent1,
+            encodings.x0,
+            encodings.x1,
+            encodings.x,
         ]))?;
 
         let canonical_inverse_depth = self.head.forward(features);
@@ -230,10 +255,7 @@ impl<B: Backend> Brioche<B> {
             return Err(anyhow!("features_0 is None"));
         }
 
-        let fov_deg = self
-            .fov
-            .forward(fov_input, features_0.unwrap())
-            .map_err(|err| anyhow!("Unable to perform forward on the fov: {err}"))?;
+        let fov_deg = self.fov.forward(fov_input, features_0.unwrap());
 
         Ok((canonical_inverse_depth, fov_deg))
     }

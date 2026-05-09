@@ -17,7 +17,7 @@ pub struct ProjectionSeq<B: Backend> {
 }
 
 impl<B: Backend> ProjectionSeq<B> {
-    /// Create a new ProjectionSeq module.
+    /// Create a new `ProjectionSeq` module.
     ///
     /// # Arguments
     /// * `dims_in` - The input dimension.
@@ -66,14 +66,14 @@ impl<B: Backend> ProjectionSeq<B> {
         }
     }
 
-    /// Forward pass of the ProjectionSeq module.
+    /// Forward pass of the `ProjectionSeq` module.
     ///
     /// 1. Apply the initial Conv2d layer to the input tensor.
-    /// 2. Apply each ConvTranspose2d layer in sequence to the output tensor.
+    /// 2. Apply each `ConvTranspose2d` layer in sequence to the output tensor.
     ///
     /// # Arguments
     ///
-    /// * `tensor` - The input tensor to the ProjectionSeq module.
+    /// * `tensor` - The input tensor to the `ProjectionSeq` module.
     pub fn forward(&self, tensor: Tensor<B, 4>) -> Tensor<B, 4> {
         let mut output = self.conv2d.forward(tensor);
         for block in &self.blocks {

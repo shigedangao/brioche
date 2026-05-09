@@ -1,4 +1,3 @@
-use anyhow::Result;
 use burn::prelude::Backend;
 use burn::tensor::TensorData;
 use burn::{Tensor, tensor::FloatDType};
@@ -25,7 +24,7 @@ pub fn preprocess_image<B: Backend>(
     img: &DynamicImage,
     device: &B::Device,
     is_half_precision: bool,
-) -> Result<Tensor<B, 3>> {
+) -> Tensor<B, 3> {
     let rgb_img = img.to_rgb32f();
     let (width, height) = rgb_img.dimensions();
     let dim: usize = (width * height) as usize;
@@ -61,7 +60,7 @@ pub fn preprocess_image<B: Backend>(
         tensor = tensor.cast(FloatDType::F16);
     }
 
-    Ok(tensor)
+    tensor
 }
 
 /// Rescale image to encoder base size
@@ -107,6 +106,6 @@ pub fn cmap(input: &Array2<f32>) -> Array3<u8> {
 ///
 /// # Arguments
 /// * `rgba` - The RGBA image to drop the alpha channel from
-pub fn drop_alpha(rgba: Array3<u8>) -> Array3<u8> {
+pub fn drop_alpha(rgba: &Array3<u8>) -> Array3<u8> {
     rgba.slice(s![.., .., 0..3]).to_owned() // (H, W, 3)
 }

@@ -7,8 +7,8 @@ use burn::prelude::Backend;
 
 /// Sequential neural network module
 ///
-/// This implements the _create_block method in python.
-/// for reference please see: depth_pro/network/decoder.py L:191
+/// This implements the `_create_block` method in python.
+/// for reference please see: `depth_pro/network/decoder.py L:191`
 #[derive(Debug, Module)]
 pub struct SequentialNNModule<B: Backend> {
     pub relu: Relu,
@@ -30,7 +30,7 @@ impl<B: Backend> SequentialNNModule<B> {
 
 /// Residual block module
 ///
-/// Based on the implementation in depth_pro/network/decoder.py L:96
+/// Based on the implementation in `depth_pro/network/decoder.py` L:96
 /// /!\ Note that the shortcut is not implemented as it seems unused.
 #[derive(Debug, Module)]
 pub struct ResidualBlock<B: Backend> {
@@ -45,9 +45,8 @@ impl<B: Backend> ResidualBlock<B> {
 
 impl<B: Backend> Decoder<B, 4> for ResidualBlock<B> {
     fn forward(&self, arg: DecoderType<B>) -> Result<DecoderOutput<B>> {
-        let tensor = match arg {
-            DecoderType::ResidualBlock(tensor) => tensor,
-            _ => return Err(anyhow!("Invalid decoder type")),
+        let DecoderType::ResidualBlock(tensor) = arg else {
+            return Err(anyhow!("Invalid decoder type"));
         };
 
         let forward_init = self

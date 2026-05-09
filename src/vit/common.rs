@@ -12,9 +12,9 @@ use ort::{
 };
 use std::path::PathBuf;
 
-/// CommonVitModel represents a Vision Transformer (ViT) model for feature extraction that is being used by Depth-pro
+/// `CommonVitModel` represents a Vision Transformer (`ViT`) model for feature extraction that is being used by Depth-pro
 ///
-/// /!\ This basically represent the FovEncoder & ImageEncoder module that is being used in the fov.rs (encoder argument).
+/// /!\ This basically represent the `FovEncoder` & `ImageEncoder` module that is being used in the fov.rs (encoder argument).
 ///     We use ort to load the model + weight and perform the forward pass using the provided backend.
 #[derive(Debug)]
 pub struct CommonVitModel {
@@ -22,7 +22,7 @@ pub struct CommonVitModel {
 }
 
 impl CommonVitModel {
-    /// Create a new CommonVitModel instance.
+    /// Create a new `CommonVitModel` instance.
     /// /!\ The fov model needs to be passed. ORT will load the model + weight.
     ///     As a result the model + weight needs to be directory.
     ///
@@ -56,7 +56,7 @@ impl<B: Backend> VitOps<B> for CommonVitModel {
         let data: Vec<F> = input
             .into_data()
             .to_vec()
-            .map_err(|err| anyhow!("Unable to convert the tensor to a vector due to {:?}", err))?;
+            .map_err(|err| anyhow!("Unable to convert the tensor to a vector due to {err}"))?;
 
         let tensor: OrtTensor<F> = OrtTensor::from_array(([1, 3, 384, 384], data))?;
 

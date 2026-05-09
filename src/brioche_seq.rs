@@ -27,13 +27,13 @@ pub struct BriocheSeq<B: Backend> {
 
 impl<B: Backend> Network<B> for BriocheSeq<B> {
     /// Creates a new instance of `BriocheSeq`.
-    /// This refer to the "head" sequential part of the DepthPro module. Refer to the link below
-    /// @link https://github.com/apple/ml-depth-pro/blob/9efe5c1def37a26c5367a71df664b18e1306c708/src/depth_pro/depth_pro.py#L182
+    /// This refer to the "head" sequential part of the `DepthPro` module. Refer to the link below
+    /// @link <https://github.com/apple/ml-depth-pro/blob/9efe5c1def37a26c5367a71df664b18e1306c708/src/depth_pro/depth_pro.py#L182>
     ///
     /// # Arguments
-    /// * dim_decoder - usize
-    /// * last_dims - (usize, usize)
-    /// * device: &B::Device
+    /// * `dim_decoder` - `usize`
+    /// * `last_dims` - `(usize, usize)`
+    /// * `device` - `&B::Device`
     fn new(config: NetworkConfig, device: &B::Device) -> Result<Self>
     where
         Self: Sized,

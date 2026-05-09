@@ -10,7 +10,7 @@ mod sequential;
 /// Fov is used to perform some task on the field of view (i guess ?)
 /// The implementation details is based on the fov network of depth-pro fov init method. Please follow the link below
 ///
-/// @link https://github.com/apple/ml-depth-pro/blob/9efe5c1def37a26c5367a71df664b18e1306c708/src/depth_pro/network/fov.py#L14
+/// @link <https://github.com/apple/ml-depth-pro/blob/9efe5c1def37a26c5367a71df664b18e1306c708/src/depth_pro/network/fov.py#L14>
 #[derive(Debug, Module)]
 pub struct Fov<B: Backend> {
     head: SequentialFovNetwork<B>,
@@ -26,9 +26,9 @@ pub struct FovConfig {
 }
 
 impl<B: Backend> Network<B> for Fov<B> {
-    /// Create a new FovNetwork instance.
-    /// /!\ Note that we could not pass the fov_encoder directly as the Session does not have the Copy & Clone trait.
-    ///     As a result, it's not possible to pass the fov_encoder as an Option
+    /// Create a new `FovNetwork` instance.
+    /// /!\ Note that we could not pass the `fov_encoder` directly as the Session does not have the Copy & Clone trait.
+    ///     As a result, it's not possible to pass the `fov_encoder` as an Option
     ///
     /// # Arguments
     ///
@@ -38,7 +38,7 @@ impl<B: Backend> Network<B> for Fov<B> {
     ///
     /// # Returns
     ///
-    /// A new FovNetwork instance.
+    /// A new `FovNetwork` instance.
     fn new(config: NetworkConfig, device: &B::Device) -> Result<Self> {
         let NetworkConfig::Fov(config) = config else {
             return Err(anyhow!("Invalid network configuration"));
@@ -84,15 +84,11 @@ impl<B: Backend> Fov<B> {
     ///
     /// # Returns
     /// The output tensor.
-    pub fn forward(
-        &mut self,
-        x: Tensor<B, 3>,
-        lowres_feature: Tensor<B, 4>,
-    ) -> Result<Tensor<B, 4>> {
-        let out = match self.encoder {
+    pub fn forward(&mut self, x: Tensor<B, 3>, lowres_feature: Tensor<B, 4>) -> Tensor<B, 4> {
+        match self.encoder {
             Some(ref mut encoder) => {
                 // Encode the interpolated features
-                let encoder_out = encoder.forward(x)?;
+                let encoder_out = encoder.forward(x);
 
                 // Slice to remove first token (dimension 1, from index 1 onwards)
                 let sliced_out = encoder_out.slice([
@@ -116,8 +112,6 @@ impl<B: Backend> Fov<B> {
                 self.head.forward(processed_x)
             }
             None => self.head.forward(lowres_feature),
-        };
-
-        Ok(out)
+        }
     }
 }

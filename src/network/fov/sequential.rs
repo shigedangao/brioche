@@ -8,22 +8,22 @@ use burn::{
     prelude::Backend,
 };
 
-/// SequentialFovNetwork0 is a sequential network that takes an input tensor and applies a convolutional layer followed by a ReLU activation.
+/// `SequentialFovNetwork0` is a sequential network that takes an input tensor and applies a convolutional layer followed by a `ReLU` activation.
 ///
 /// This follows the implementation of depth-pro's fov.py. Reference can be found at the link below
 ///
-/// @link https://github.com/apple/ml-depth-pro/blob/9efe5c1def37a26c5367a71df664b18e1306c708/src/depth_pro/network/fov.py#L30.
+/// @link <https://github.com/apple/ml-depth-pro/blob/9efe5c1def37a26c5367a71df664b18e1306c708/src/depth_pro/network/fov.py#L30>.
 #[derive(Debug, Module)]
 pub struct SequentialFovNetwork0<B: Backend> {
     pub conv: Conv2d<B>,
     pub relu: Relu,
 }
 
-/// SequentialFovNetwork is a sequential network that takes an input tensor and applies a convolutional layer followed by a ReLU activation.
+/// `SequentialFovNetwork` is a sequential network that takes an input tensor and applies a convolutional layer followed by a `ReLU` activation.
 ///
 /// This follows the implementation of depth-pro's fov.py. Reference can be found at the link below
 ///
-/// @link https://github.com/apple/ml-depth-pro/blob/9efe5c1def37a26c5367a71df664b18e1306c708/src/depth_pro/network/fov.py#L36.
+/// @link <https://github.com/apple/ml-depth-pro/blob/9efe5c1def37a26c5367a71df664b18e1306c708/src/depth_pro/network/fov.py#L36>.
 #[derive(Debug, Module)]
 pub struct SequentialFovNetwork<B: Backend> {
     pub fov_head0: Option<SequentialFovNetwork0<B>>,
@@ -35,7 +35,7 @@ pub struct SequentialFovNetwork<B: Backend> {
 }
 
 impl<B: Backend> SequentialFovNetwork0<B> {
-    /// Create a new SequentialFovNetwork0 module.
+    /// Create a new `SequentialFovNetwork0` module.
     ///
     /// # Arguments
     /// * `num_features` - The number of features in the input tensor.
@@ -50,7 +50,7 @@ impl<B: Backend> SequentialFovNetwork0<B> {
         }
     }
 
-    /// Forward pass of the SequentialFovNetwork0 module.
+    /// Forward pass of the `SequentialFovNetwork0` module.
     ///
     /// # Arguments
     /// * `input` - The input tensor.
@@ -63,16 +63,16 @@ impl<B: Backend> SequentialFovNetwork0<B> {
 }
 
 impl<B: Backend> SequentialFovNetwork<B> {
-    /// Create a new SequentialFovNetwork instance.
-    /// The usage of the SequentialFovNetwork0 instance is optional and only being used whenever the "fov_encoder" is None.
+    /// Create a new `SequentialFovNetwork` instance.
+    /// The usage of the `SequentialFovNetwork0` instance is optional and only being used whenever the "`fov_encoder`" is None.
     ///
     /// # Arguments
     /// * `num_features` - The number of features in the input tensor.
-    /// * `fov_head0` - An optional SequentialFovNetwork0 instance.
+    /// * `fov_head0` - An optional `SequentialFovNetwork0` instance.
     /// * `device` - The device on which the network will be created.
     ///
     /// # Returns
-    /// A new SequentialFovNetwork instance.
+    /// A new `SequentialFovNetwork` instance.
     pub fn new(
         num_features: usize,
         fov_head0: Option<SequentialFovNetwork0<B>>,
@@ -100,7 +100,7 @@ impl<B: Backend> SequentialFovNetwork<B> {
     /// This implements the forward pass of the sequential network based on a given input tensor
     /// This implementation refers to depth-pro's fov.py. Reference can be found at the link below
     ///
-    /// @link https://github.com/apple/ml-depth-pro/blob/9efe5c1def37a26c5367a71df664b18e1306c708/src/depth_pro/network/fov.py#L30.
+    /// @link <https://github.com/apple/ml-depth-pro/blob/9efe5c1def37a26c5367a71df664b18e1306c708/src/depth_pro/network/fov.py#L30>.
     ///
     /// # Arguments
     /// * `input` - The input tensor to the network

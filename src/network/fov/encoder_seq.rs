@@ -1,4 +1,3 @@
-use anyhow::Result;
 use burn::{
     Tensor,
     module::Module,
@@ -9,16 +8,16 @@ use burn::{
 /// Sequential Foveal Vision Transformer (FOV) network encoder.
 ///
 /// This module implements the following fov part of depth-pro. refer to the link below
-/// @link https://github.com/apple/ml-depth-pro/blob/9efe5c1def37a26c5367a71df664b18e1306c708/src/depth_pro/network/fov.py#L48
+/// @link <https://github.com/apple/ml-depth-pro/blob/9efe5c1def37a26c5367a71df664b18e1306c708/src/depth_pro/network/fov.py#L48>
 ///
-/// /!\ Note that this is tightly linked to the fov_encoder module that needs to be converted with onnx.
+/// /!\ Note that this is tightly linked to the `fov_encoder` module that needs to be converted with onnx.
 #[derive(Debug, Module)]
 pub struct SequentialFovNetworkEncoder<B: Backend> {
     pub linear: Linear<B>,
 }
 
 impl<B: Backend> SequentialFovNetworkEncoder<B> {
-    /// Create a new SequentialFovNetworkEncoder module.
+    /// Create a new `SequentialFovNetworkEncoder` module.
     ///
     /// # Arguments
     /// * `embed_dim` - The input dimension.
@@ -30,15 +29,13 @@ impl<B: Backend> SequentialFovNetworkEncoder<B> {
         }
     }
 
-    /// Forward pass of the SequentialFovNetworkEncoder module.
+    /// Forward pass of the `SequentialFovNetworkEncoder` module.
     ///
     /// # Arguments
     /// * `input` - The input tensor.
     /// * `device` - The device to use.
-    /// * `encoder` - The CommonVitModel encoder.
-    pub fn forward(&mut self, input: Tensor<B, 3>) -> Result<Tensor<B, 3>> {
-        let output = self.linear.forward(input);
-
-        Ok(output)
+    /// * `encoder` - The `CommonVitModel` encoder.
+    pub fn forward(&mut self, input: Tensor<B, 3>) -> Tensor<B, 3> {
+        self.linear.forward(input)
     }
 }

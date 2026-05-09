@@ -11,8 +11,8 @@ use burn::prelude::Backend;
 
 /// Feature fusion block for 2D images.
 ///
-/// This implements the FeatureFusionBlock2d class from the deco
-/// @link https://github.com/apple/ml-depth-pro/blob/9efe5c1def37a26c5367a71df664b18e1306c708/src/depth_pro/network/decoder.py#L121
+/// This implements the `FeatureFusionBlock2d` class from the deco
+/// @link <https://github.com/apple/ml-depth-pro/blob/9efe5c1def37a26c5367a71df664b18e1306c708/src/depth_pro/network/decoder.py#L121>
 #[derive(Debug, Module)]
 pub struct FeatureFusionBlock2D<B: Backend> {
     num_features: usize,
@@ -90,9 +90,8 @@ impl<B: Backend> FeatureFusionBlock2D<B> {
 
 impl<B: Backend> Decoder<B, 4> for FeatureFusionBlock2D<B> {
     fn forward(&self, arg: DecoderType<B>) -> Result<DecoderOutput<B>> {
-        let (mut x0, x1) = match arg {
-            DecoderType::FeatureFusionBlock2D(x, x1) => (x, x1),
-            _ => return Err(anyhow!("Invalid input type")),
+        let DecoderType::FeatureFusionBlock2D(mut x0, x1) = arg else {
+            return Err(anyhow!("Invalid input type"));
         };
 
         if let Some(x1) = x1 {

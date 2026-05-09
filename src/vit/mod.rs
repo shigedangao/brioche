@@ -24,14 +24,14 @@ pub struct VitResult<B: Backend> {
 }
 
 pub trait VitOps<B: Backend> {
-    /// Forward pass of the ViT model.
+    /// Forward pass of the `ViT` model.
     ///
     /// # Arguments
-    /// * `input` - Input tensor of shape (batch_size, channels, height, width).
+    /// * `input` - Input tensor of shape (`batch_size`, `channels`, height, width).
     /// * `device` - Device on which the computation should be performed.
     ///
     /// # Returns
-    /// A `Result` containing the output tensor of shape (batch_size, num_patches, embedding_dim),
+    /// A `Result` containing the output tensor of shape (`batch_size`, `num_patches`, `embedding_dim`),
     /// and two optional hooks for intermediate results.
     fn forward<F: MixedFloats>(
         &mut self,
@@ -41,7 +41,7 @@ pub trait VitOps<B: Backend> {
 }
 
 pub(crate) mod utils {
-    use super::*;
+    use super::{Backend, FourConfig, Result, Shape, Tensor, thread, utils};
     #[cfg(feature = "burn_onnx")]
     use crate::vit::{common_burn::CommonVitModel, patch_burn::PatchVitModel};
     #[cfg(feature = "ort_onnx")]
@@ -64,19 +64,22 @@ pub(crate) mod utils {
     #[cfg(feature = "ort_onnx")]
     pub fn extract_tensor_shape<const S: usize>(shape: &Shape) -> Result<[usize; S]> {
         if shape.len() != S {
-            return Err(anyhow::anyhow!("Unexpected shape for tokens: {:?}", shape));
+            return Err(anyhow::anyhow!("Unexpected shape for tokens: {shape:?}"));
         }
 
-        let v: Vec<usize> = shape.iter().map(|v| *v as usize).collect();
+        let v: Vec<usize> = shape
+            .iter()
+            .filter_map(|v| usize::try_from(*v).ok())
+            .collect();
 
         v.try_into()
-            .map_err(|err| anyhow::anyhow!("Unable to convert shape into desired slice: {:?}", err))
+            .map_err(|err| anyhow::anyhow!("Unable to convert shape into desired slice: {err:?}"))
     }
 
     /// Get a burn tensor from ONNX Runtime output.
     ///
     /// # Arguments
-    /// * `output` - SessionOutputs<'a>.
+    /// * `output` - `SessionOutputs<'a>`.
     /// * `output_ident` - The identifier of the output.
     /// * `device` - The device to allocate the tensor on.
     ///
@@ -121,7 +124,7 @@ pub(crate) mod utils {
 
     #[cfg(feature = "ort_onnx")]
     pub fn load_models<S: AsRef<str> + Clone + Send + Sync>(
-        config: FourConfig<S>,
+        config: &FourConfig<S>,
     ) -> Result<(PatchVitModel, CommonVitModel, CommonVitModel)> {
         let handles = thread::scope(|scope| {
             let patch_model = scope.spawn(|| {
