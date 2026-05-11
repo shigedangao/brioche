@@ -51,4 +51,4 @@ inherits = "release"
 lto = true
 
 [build-dependencies]
-burn-onnx = { version = "0.21.0-pre.5", optional = true }
+burn-onnx = { version = "0.21.0", optional = true }

@@ -41,7 +41,7 @@ pub trait VitOps<B: Backend> {
 }
 
 pub(crate) mod utils {
-    use super::{Backend, FourConfig, Result, Shape, Tensor, thread, utils};
+    use super::*;
     #[cfg(feature = "burn_onnx")]
     use crate::vit::{common_burn::CommonVitModel, patch_burn::PatchVitModel};
     #[cfg(feature = "ort_onnx")]
@@ -111,13 +111,13 @@ pub(crate) mod utils {
 
     #[cfg(feature = "burn_onnx")]
     pub fn load_models<S: AsRef<str> + Clone>(
-        _: FourConfig<S>,
+        _: &FourConfig<S>,
     ) -> Result<(PatchVitModel, CommonVitModel, CommonVitModel)> {
         use crate::vit::common_burn::CommonVitModelList;
 
         Ok((
             PatchVitModel::new()?,
-            CommonVitModel::new(common_burn::CommonVitModelList::Fov)?,
+            CommonVitModel::new(CommonVitModelList::Fov)?,
             CommonVitModel::new(CommonVitModelList::Image)?,
         ))
     }
