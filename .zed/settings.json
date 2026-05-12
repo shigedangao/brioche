@@ -4,8 +4,8 @@
       "initialization_options": {
         "cargo": {
           "allFeatures": false,
-          "noDefaultFeatures": true,
-          "features": ["f32", "burn_onnx"],
+          "noDefaultFeatures": false,
+          "features": [],
         },
       },
     },

@@ -394,14 +394,13 @@ impl<B: Backend> Encoder<B> {
 }
 
 #[cfg(test)]
-#[cfg(feature = "metal")]
 mod tests {
     use super::*;
-    use burn::backend::Metal;
+    use burn::backend::Wgpu;
     use burn::tensor::TensorData;
     use ndarray::Array4;
 
-    fn create_encoder_with_weight() -> Encoder<Metal> {
+    fn create_encoder_with_weight() -> Encoder<Wgpu> {
         let device = Default::default();
 
         let encoder_config = EncoderConfig {
@@ -412,9 +411,9 @@ mod tests {
             out_size: 384 / 16,
         };
 
-        let encoder = Encoder::<Metal>::new(NetworkConfig::Encoder(encoder_config), &device)
+        let encoder = Encoder::<Wgpu>::new(NetworkConfig::Encoder(encoder_config), &device)
             .unwrap()
-            .with_record("butter/encoder_only.pt")
+            .with_record("butter/weights/encoder_only.pt")
             .unwrap();
 
         encoder
@@ -435,7 +434,7 @@ mod tests {
         let x_matrix: Array4<f32> =
             ndarray_npy::read_npy("testdata/tensors_data/fov/x.npy").unwrap();
         let (x_data, _) = x_matrix.into_raw_vec_and_offset();
-        let x: Tensor<Metal, 4> =
+        let x: Tensor<Wgpu, 4> =
             Tensor::from_data(TensorData::new(x_data, [1, 3, 1536, 1536]), &device);
 
         let encoder = create_encoder_with_weight();
@@ -443,10 +442,10 @@ mod tests {
             .forward::<f32>(x, patch_encoder, image_encoder, &device)
             .unwrap();
 
-        assert_eq!(res.x_latent0_features.shape().dims(), [1, 256, 768, 768]);
-        assert_eq!(res.x_latent1_features.shape().dims(), [1, 256, 384, 384]);
-        assert_eq!(res.x0_features.shape().dims(), [1, 512, 192, 192]);
-        assert_eq!(res.x1_features.shape().dims(), [1, 1024, 96, 96]);
-        assert_eq!(res.x_global_features.shape().dims(), [1, 1024, 48, 48]);
+        assert_eq!(res.x_latent0.shape().dims(), [1, 256, 768, 768]);
+        assert_eq!(res.x_latent1.shape().dims(), [1, 256, 384, 384]);
+        assert_eq!(res.x0.shape().dims(), [1, 512, 192, 192]);
+        assert_eq!(res.x1.shape().dims(), [1, 1024, 96, 96]);
+        assert_eq!(res.x.shape().dims(), [1, 1024, 48, 48]);
     }
 }
