@@ -171,10 +171,9 @@ impl<B: Backend> Decoder<B, 4> for MultiResConv<B> {
 }
 
 #[cfg(test)]
-#[cfg(feature = "metal")]
 mod tests {
     use crate::{Decoder, DecoderType};
-    use burn::backend::Metal;
+    use burn::backend::Wgpu;
     use burn::tensor::{Tensor, TensorData};
     use ndarray::Array4;
 
@@ -183,7 +182,7 @@ mod tests {
         decoder::multires_conv::{MultiResConv, MultiResDecoderConfig},
     };
 
-    fn create_decoder() -> MultiResConv<Metal> {
+    fn create_decoder() -> MultiResConv<Wgpu> {
         let device = Default::default();
 
         let decoder = MultiResConv::new(
@@ -209,7 +208,7 @@ mod tests {
             ndarray_npy::read_npy("testdata/tensors_data/decoder/encodings_x_latent0_features.npy")
                 .unwrap();
         let (x_latent0_data, _) = x_latent0_features_np.into_raw_vec_and_offset();
-        let x_latent0_features: Tensor<Metal, 4> =
+        let x_latent0_features: Tensor<Wgpu, 4> =
             Tensor::from_data(TensorData::new(x_latent0_data, [1, 256, 768, 768]), &device);
 
         // x_latent1_features
@@ -217,7 +216,7 @@ mod tests {
             ndarray_npy::read_npy("testdata/tensors_data/decoder/encodings_x_latent1_features.npy")
                 .unwrap();
         let (x_latent1_data, _) = x_latent1_features_np.into_raw_vec_and_offset();
-        let x_latent1_features: Tensor<Metal, 4> =
+        let x_latent1_features: Tensor<Wgpu, 4> =
             Tensor::from_data(TensorData::new(x_latent1_data, [1, 256, 384, 384]), &device);
 
         // x0_features
@@ -225,7 +224,7 @@ mod tests {
             ndarray_npy::read_npy("testdata/tensors_data/decoder/encodings_x0_features.npy")
                 .unwrap();
         let (x0_features_data, _) = x0_features_np.into_raw_vec_and_offset();
-        let x0_features: Tensor<Metal, 4> = Tensor::from_data(
+        let x0_features: Tensor<Wgpu, 4> = Tensor::from_data(
             TensorData::new(x0_features_data, [1, 512, 192, 192]),
             &device,
         );
@@ -235,7 +234,7 @@ mod tests {
             ndarray_npy::read_npy("testdata/tensors_data/decoder/encodings_x1_features.npy")
                 .unwrap();
         let (x1_features_data, _) = x1_features_np.into_raw_vec_and_offset();
-        let x1_features: Tensor<Metal, 4> = Tensor::from_data(
+        let x1_features: Tensor<Wgpu, 4> = Tensor::from_data(
             TensorData::new(x1_features_data, [1, 1024, 96, 96]),
             &device,
         );
@@ -245,7 +244,7 @@ mod tests {
             ndarray_npy::read_npy("testdata/tensors_data/decoder/encodings_x_global_features.npy")
                 .unwrap();
         let (x0_global_data, _) = x_global_features_np.into_raw_vec_and_offset();
-        let x_global_features: Tensor<Metal, 4> =
+        let x_global_features: Tensor<Wgpu, 4> =
             Tensor::from_data(TensorData::new(x0_global_data, [1, 1024, 48, 48]), &device);
 
         let decoder = create_decoder();

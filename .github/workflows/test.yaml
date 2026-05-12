@@ -1,0 +1,26 @@
+name: test
+
+on: [push]
+
+jobs:
+  clippy:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Install uv
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b
+      - name: install dependencies
+        working-directory: butter
+        run: uv sync
+      - name: download depth-pro checkpoint
+        working-directory: butter
+        run: uv run vit_exporter.py --download-checkpoint --checkpoint-path ./depth_pro.pt
+      - name: export the model to onnx
+        working-directory: butter
+        run: uv run vit_exporter.py --checkpoint-path ./depth_pro.pt
+      - name: export the weights
+        working-directory: butter
+        run: uv run state_exporter.py --checkpoint-path ./depth_pro.pt
+      - name: run tests
+        run: cargo test -- --skip expect_decoder_to_output_something
