@@ -20,7 +20,6 @@ use burn::{
     nn::interpolate::{Interpolate2dConfig, InterpolateMode},
     prelude::{Backend, Module},
 };
-use std::f32::consts::PI;
 #[cfg(feature = "ort_onnx")]
 use {
     crate::vit::{common::CommonVitModel, patch::PatchVitModel},
@@ -106,7 +105,7 @@ impl<B: Backend> Brioche<B> {
     /// * `head_weight_path` - Path to the head weights.
     /// * `device` - Device to load the weights onto.
     ///
-    /// # Error
+    /// # Errors
     ///
     /// Returns an error if the weights cannot be loaded from the given paths.
     ///
@@ -145,6 +144,10 @@ impl<B: Backend> Brioche<B> {
     /// * `fov_image_encoder` - The field of view image encoder model.
     /// * `img_size` - The image size.
     /// * `device` - The device.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the inference fails.
     ///
     /// # Returns
     /// * `Tensor<B, 4>` - The depth tensor.
@@ -187,9 +190,11 @@ impl<B: Backend> Brioche<B> {
             )
             .map_err(|err| anyhow!("Unable to perform the forward of the model due to {err}"))?;
 
-        let fov_deg_to_rad = fov_deg * PI / 180.;
-        let f_px = 0.5 * w as f32 / (fov_deg_to_rad * 0.5).tan();
-        let mut inverse_depth = canonical_inverse_depth * (w as f32 / f_px.clone());
+        #[allow(clippy::cast_precision_loss)]
+        let wf = w as f32;
+
+        let f_px = 0.5 * wf / (fov_deg.deg2rad() * 0.5).tan();
+        let mut inverse_depth = canonical_inverse_depth * (wf / f_px.clone());
 
         let f_px_squeeze = match f_px.shape().dims() != [1, 1, 1, 1] {
             true => Some(f_px.squeeze()),
@@ -221,8 +226,8 @@ impl<B: Backend> Brioche<B> {
     /// * `img_size` - Size of the input image.
     ///
     /// # Returns
-    /// * `canonical_inverse_depth` - Canonical inverse depth tensor of shape [batch_size, channels, height, width].
-    /// * `fov_deg` - Field of view angle tensor of shape [batch_size, channels, height, width].
+    /// * `canonical_inverse_depth` - Canonical inverse depth tensor of shape [`batch_size`, `channels`, `height`, `width`].
+    /// * `fov_deg` - Field of view angle tensor of shape [`batch_size`, `channels`, `height`, `width`].
     pub fn forward<F: MixedFloats>(
         &mut self,
         inputs: (Tensor<B, 4>, Tensor<B, 3>),
@@ -251,12 +256,14 @@ impl<B: Backend> Brioche<B> {
         ]))?;
 
         let canonical_inverse_depth = self.head.forward(features);
-        if features_0.is_none() {
-            return Err(anyhow!("features_0 is None"));
+
+        match features_0 {
+            Some(ft) => {
+                let fov_deg = self.fov.forward(fov_input, ft);
+
+                Ok((canonical_inverse_depth, fov_deg))
+            }
+            None => Err(anyhow!("features_0 is None")),
         }
-
-        let fov_deg = self.fov.forward(fov_input, features_0.unwrap());
-
-        Ok((canonical_inverse_depth, fov_deg))
     }
 }

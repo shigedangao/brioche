@@ -90,7 +90,7 @@ cargo run --release --example sample_metal --features="metal,f32" -- --quantize
 
 ## Note ⚠️
 
-This project is not production ready. It's a work that is done for educational purposes. There's currently an overhead when converting a CPU tensor from ONNX to GPU tensor for Burn which is not ideal for production use. Below is a performance table
+This project serves as an educational purpose. There's an overhead when converting a CPU tensor from ONNX to GPU tensor when using the ORT library. This overhead is not ideal for production use. Below is a performance table (Burn onnx seems to be faster than ORT on GPU)
 
 | Device                | Precision             | Time (s) |
 |-----------------------|---------------------- |----------|

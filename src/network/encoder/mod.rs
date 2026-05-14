@@ -27,6 +27,7 @@ const PATCH_SIZE: usize = 384;
 //
 // # Arguments
 // * `overlap_ratio` - The overlap ratio between patches.
+#[allow(clippy::cast_precision_loss)]
 const fn compute_patch_stride(overlap_ratio: f64) -> f64 {
     PATCH_SIZE as f64 * (1. - overlap_ratio)
 }
@@ -172,6 +173,7 @@ impl<B: Backend> Encoder<B> {
     /// # Arguments
     /// * `input` - The input tensor.
     /// * `patch_stride` - The patch stride.
+    #[allow(clippy::cast_sign_loss, clippy::cast_possible_truncation)]
     fn split(input: &Tensor<B, 4>, patch_stride: f64) -> Result<Tensor<B, 4>> {
         let Some(ref image_size) = input.shape().last().copied() else {
             return Err(anyhow!(

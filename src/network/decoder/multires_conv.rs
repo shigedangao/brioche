@@ -48,10 +48,9 @@ impl<B: Backend> Network<B> for MultiResConv<B> {
             }
         });
 
-        // @TODO maybe push Option<Conv2d<B>> in order to match the same weight import as depth-pro
-        let mut convs = match conv0 {
+        let mut conv_ops = match conv0 {
             Some(conv) => vec![conv],
-            None => vec![],
+            None => Vec::with_capacity(dims_encoder.len()),
         };
 
         dims_encoder.iter().skip(1).for_each(|dim| {
@@ -61,7 +60,7 @@ impl<B: Backend> Network<B> for MultiResConv<B> {
                 .with_bias(false)
                 .init::<B>(device);
 
-            convs.push(conv_config);
+            conv_ops.push(conv_config);
         });
 
         let fusions: Vec<FeatureFusionBlock2D<B>> = dims_encoder
@@ -72,7 +71,7 @@ impl<B: Backend> Network<B> for MultiResConv<B> {
 
         Ok(Self {
             dims_encoder_len: dims_encoder.len(),
-            convs,
+            convs: conv_ops,
             fusions,
         })
     }

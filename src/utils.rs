@@ -10,7 +10,7 @@ use ndarray::{Array2, Array3, s};
 ///
 ///  transform = Compose(
 ///       [
-///           ToTensor(),
+///           `ToTensor()`,
 ///           Lambda(lambda x: x.to(device)), <-- not needed in Burn
 ///           Normalize([0.5, 0.5, 0.5], [0.5, 0.5, 0.5]),
 ///           ConvertImageDtype(precision), <-- not needed in Burn
