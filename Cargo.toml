@@ -20,6 +20,9 @@ ndarray-npy = { version = "0.10.0" }
 ndarray-stats = { version = "0.7.0" }
 ort = { version = "=2.0.0-rc.12", optional = true }
 
+[patch.crates-io]
+cubecl-hip-sys = { git = "https://github.com/shigedangao/cubecl-hip-sys.git", branch = "main" }
+
 [dev-dependencies]
 clap = { version = "4.5.56", features = ["derive"] }
 rand = "0.9.2"
@@ -50,6 +53,11 @@ required-features = ["cuda"]
 name = "sample_rocm"
 path = "examples/sample.rs"
 required-features = ["rocm"]
+
+[[example]]
+name = "sample_wgpu"
+path = "examples/sample.rs"
+required-features = ["wgpu"]
 
 [profile.release-lto]
 inherits = "release"

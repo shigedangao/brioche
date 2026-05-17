@@ -17,6 +17,9 @@ use burn::backend::Cuda as Backend;
 #[cfg(feature = "rocm")]
 use burn::backend::Rocm as Backend;
 
+#[cfg(feature = "wgpu")]
+use burn::backend::Wgpu as Backend;
+
 static CONFIG: LazyLock<FourConfig<&'static str>> = cfg_select! {
     feature = "f32" => LazyLock::new(|| FourConfig {
         patch_vit_path: "./butter/onnx_model/depthpro_vit_patch.onnx",
