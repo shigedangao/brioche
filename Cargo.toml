@@ -46,6 +46,11 @@ name = "sample_cuda"
 path = "examples/sample.rs"
 required-features = ["cuda"]
 
+[[example]]
+name = "sample_rocm"
+path = "examples/sample.rs"
+required-features = ["rocm"]
+
 [profile.release-lto]
 inherits = "release"
 lto = true
