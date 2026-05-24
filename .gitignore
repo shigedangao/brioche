@@ -10,3 +10,4 @@ testdata
 onnx_model
 weights
 runs/*
+amdgpu-install_6.1.60103-1_all.deb

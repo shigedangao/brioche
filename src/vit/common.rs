@@ -1,7 +1,7 @@
 use super::{VitOps, VitResult, utils};
 use crate::MixedFloats;
 use anyhow::anyhow;
-use burn::{Tensor, prelude::Backend};
+use burn::{prelude::Backend, tensor::Tensor};
 use ort::{
     memory::Allocator,
     session::{
@@ -53,8 +53,8 @@ impl<B: Backend> VitOps<B> for CommonVitModel {
         device: &B::Device,
     ) -> Result<VitResult<B>, anyhow::Error> {
         // /!\ Some overhead happened when performing this operation for the FOV tensor.
-        let data: Vec<F> = input
-            .into_data()
+        let data = input
+            .try_into_data()?
             .to_vec()
             .map_err(|err| anyhow!("Unable to convert the tensor to a vector due to {err}"))?;
 

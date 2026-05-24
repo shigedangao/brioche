@@ -38,7 +38,7 @@ impl<B: Backend> VitOps<B> for PatchVitModel {
         input: Tensor<B, 4>,
         device: &B::Device,
     ) -> Result<VitResult<B>, anyhow::Error> {
-        let data = input.into_data().to_vec().map_err(|err| {
+        let data = input.try_into_data()?.to_vec().map_err(|err| {
             anyhow::anyhow!("Unable to convert the tensor to a vector due to {err}")
         })?;
 
