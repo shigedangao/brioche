@@ -3,6 +3,7 @@ use burn::tensor::TensorData;
 use burn::{Tensor, tensor::FloatDType};
 use colorgrad::Gradient;
 use image::DynamicImage;
+use ndarray::Zip;
 use ndarray::{Array2, Array3, s};
 
 /// Preprocess an image by converting it to RGB, normalizing pixel values, and reshaping it.
@@ -27,27 +28,10 @@ pub fn preprocess_image<B: Backend>(
 ) -> Tensor<B, 3> {
     let rgb_img = img.to_rgb32f();
     let (width, height) = rgb_img.dimensions();
-    let dim: usize = (width * height) as usize;
 
-    // Create a vector to store each channel
-    let mut r_channel = Vec::with_capacity(dim);
-    let mut g_channel = Vec::with_capacity(dim);
-    let mut b_channel = Vec::with_capacity(dim);
-
-    for pixel in rgb_img.pixels() {
-        r_channel.push(pixel[0]);
-        g_channel.push(pixel[1]);
-        b_channel.push(pixel[2]);
-    }
-
-    // Concatenate channels in CHW order
-    let mut pixels = Vec::with_capacity((3 * width * height) as usize);
-    pixels.extend(r_channel);
-    pixels.extend(g_channel);
-    pixels.extend(b_channel);
-
-    let tensor_data = TensorData::new(pixels, [3, height as usize, width as usize]);
-    let tensor = Tensor::from_floats(tensor_data, device);
+    let raw = rgb_img.into_raw();
+    let tensor_data = TensorData::new(raw, [height as usize, width as usize, 3]);
+    let tensor = Tensor::from_floats(tensor_data, device).permute([2, 0, 1]);
 
     // Create mean and std as 1D tensors & reshape to (3, 1, 1) for broadcasting across H and W dimensions
     let mean = Tensor::<B, 1>::from_floats([0.5, 0.5, 0.5], device).reshape([3, 1, 1]);
@@ -80,24 +64,21 @@ pub fn rescale_image(img: &DynamicImage, encoder_base_size: u32) -> DynamicImage
 ///
 /// # Arguments
 /// * `input` - The depth map to convert
-pub fn cmap(input: &Array2<f32>) -> Array3<u8> {
+pub fn cmap(mut input: Array2<f32>) -> Array3<u8> {
     let (h, w) = input.dim();
     // Create the turbo gradient domain [0..1]
     let grad = colorgrad::preset::turbo();
 
     // Create a new matrix with the proper shape
     let mut rgb = Array3::<u8>::zeros((h, w, 4));
-
-    // Copy depth into each channel
-    for ((y, x), v) in input.indexed_iter() {
-        let v = v.clamp(0.0, 1.0); // important: match cmap domain
-        let rgba = grad.at(v).to_rgba8(); // [r,g,b,a] u8 :contentReference[oaicite:2]{index=2}
+    Zip::indexed(&mut input).for_each(|(y, x), v| {
+        let rgba = grad.at(v.clamp(0., 1.)).to_rgba8();
 
         rgb[[y, x, 0]] = rgba[0];
         rgb[[y, x, 1]] = rgba[1];
         rgb[[y, x, 2]] = rgba[2];
         rgb[[y, x, 3]] = rgba[3];
-    }
+    });
 
     rgb
 }
