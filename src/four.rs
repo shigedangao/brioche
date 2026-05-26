@@ -184,7 +184,7 @@ impl<B: Backend> Four<B> {
 
         let inverse_depth_normalized = inverse_depth_normalized.clamp(0., 1.);
 
-        let cmap_matrix = utils::cmap(&inverse_depth_normalized);
+        let cmap_matrix = utils::cmap(inverse_depth_normalized);
         let cmap_matrix = utils::drop_alpha(&cmap_matrix);
 
         let (raw_vec, _) = cmap_matrix.into_raw_vec_and_offset();

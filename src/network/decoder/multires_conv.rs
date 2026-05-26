@@ -79,7 +79,7 @@ impl<B: Backend> Network<B> for MultiResConv<B> {
 
 impl<B: Backend> Decoder<B, 4> for MultiResConv<B> {
     fn forward(&self, input: DecoderType<B>) -> Result<DecoderOutput<B>> {
-        let DecoderType::MultiResConv(encodings) = input else {
+        let DecoderType::MultiResConv(mut encodings) = input else {
             return Err(anyhow!("Invalid input type"));
         };
 
@@ -117,9 +117,10 @@ impl<B: Backend> Decoder<B, 4> for MultiResConv<B> {
             .map(|conv| {
                 let encoding = encodings
                     .last()
+                    .cloned()
                     .expect("Expect to get the last tensor available");
 
-                conv.forward(encoding.clone())
+                conv.forward(encoding)
             })
             .ok_or(anyhow!("Failed to forward the last convolution"))?;
 
@@ -132,19 +133,20 @@ impl<B: Backend> Decoder<B, 4> for MultiResConv<B> {
             .ok_or(anyhow!("Unable to get the latest fusion"))?;
 
         let (last_fusion_output, _) =
-            last_fusion.forward(DecoderType::FeatureFusionBlock2D(features.clone(), None))?;
+            last_fusion.forward(DecoderType::FeatureFusionBlock2D(features, None))?;
 
         features = last_fusion_output;
 
-        for idx in (0..encodings.len() - 1).rev() {
+        let mut idx = encodings.len();
+        while let Some(encoding) = encodings.pop() {
+            idx -= 1;
+            if idx > 3 {
+                continue;
+            }
+
             let conv = reprocessed_convs
                 .get(idx)
                 .ok_or(anyhow!("Unable to get tensor at index {idx}"))?;
-
-            let encoding = encodings
-                .get(idx)
-                .ok_or(anyhow!("Unable to get encoding at index {idx}"))?
-                .to_owned();
 
             let features_idx = match conv {
                 Some(c) => c.forward(encoding),

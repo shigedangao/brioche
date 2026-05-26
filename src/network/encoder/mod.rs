@@ -6,6 +6,7 @@ use crate::vit::{common::CommonVitModel, patch::PatchVitModel};
 #[cfg(feature = "burn_onnx")]
 use crate::vit::{common_burn::CommonVitModel, patch_burn::PatchVitModel};
 use anyhow::{Result, anyhow};
+use burn::nn::Unfold4dConfig;
 use burn::{
     Tensor,
     module::Module,
@@ -174,36 +175,19 @@ impl<B: Backend> Encoder<B> {
     /// * `input` - The input tensor.
     /// * `patch_stride` - The patch stride.
     #[allow(clippy::cast_sign_loss, clippy::cast_possible_truncation)]
-    fn split(input: &Tensor<B, 4>, patch_stride: f64) -> Result<Tensor<B, 4>> {
-        let Some(ref image_size) = input.shape().last().copied() else {
-            return Err(anyhow!(
-                "Unable to get the image size from the shape of the tensor"
-            ));
-        };
-
+    fn split(input: Tensor<B, 4>, patch_stride: f64) -> Tensor<B, 4> {
         let [batch, chan, _, _] = input.dims();
-        // We're allowing manual div ceil as otherwise this will result in a different tensor shape.
-        let pp_usize = patch_stride as usize;
-        #[allow(clippy::manual_div_ceil)]
-        let steps = (image_size - PATCH_SIZE + pp_usize - 1) / pp_usize + 1;
+        let unfold_config = Unfold4dConfig::new([PATCH_SIZE, PATCH_SIZE])
+            .with_stride([patch_stride as usize, patch_stride as usize])
+            .init();
 
-        let mut patches = Vec::with_capacity(steps * steps);
-        // process height
-        for j in 0..steps {
-            let j0 = j * pp_usize;
-            let j1 = j0 + PATCH_SIZE;
+        let unfolded = unfold_config.forward(input);
+        let l = unfolded.dims()[2];
 
-            // process width
-            for i in 0..steps {
-                let i0 = i * pp_usize;
-                let i1 = i0 + PATCH_SIZE;
-
-                let patch = input.clone().slice([0..batch, 0..chan, j0..j1, i0..i1]);
-                patches.push(patch);
-            }
-        }
-
-        Ok(Tensor::cat(patches, 0))
+        unfolded
+            .reshape([batch, chan, PATCH_SIZE, PATCH_SIZE, l])
+            .permute([4, 0, 1, 2, 3])
+            .squeeze()
     }
 
     /// Reshape the input tensor into a feature map.
@@ -295,9 +279,9 @@ impl<B: Backend> Encoder<B> {
         // Step 1: split to create batched overlapped mini-images at the backbone (BeiT/ViT/Dino)
         // resolution.
         // 5x5 @ 384x384 at the highest resolution (1536x1536).
-        let x0_patches = Self::split(&x0, compute_patch_stride(0.25))?;
+        let x0_patches = Self::split(x0, compute_patch_stride(0.25));
         // 3x3 @ 384x384 at the middle resolution (768x768).
-        let x1_patches = Self::split(&x1, compute_patch_stride(0.5))?;
+        let x1_patches = Self::split(x1, compute_patch_stride(0.5));
 
         // These 3 variables are the batch sizes of the patches. Use them to split the patches into chunks.
         // We can retrieve the access the dim of the tensor as there will always be a batch dimension.
