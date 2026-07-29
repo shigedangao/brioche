@@ -41,7 +41,7 @@ pub trait VitOps<B: Backend> {
 }
 
 pub(crate) mod utils {
-    use super::*;
+    use super::{Backend, FourConfig, Result, Shape, Tensor, thread, utils};
     #[cfg(feature = "burn_onnx")]
     use crate::vit::{common_burn::CommonVitModel, patch_burn::PatchVitModel};
     #[cfg(feature = "ort_onnx")]

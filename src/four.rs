@@ -23,8 +23,8 @@ use std::path::PathBuf;
 const LAST_DIMS: (usize, usize) = (32, 1);
 const DIM_DECODER: usize = 256;
 const EMBED_DIM: usize = 1024;
-const ENCODER_IMG_SIZE: usize = 384 * 4;
 const FOV_ENCODER_IMG_SIZE: usize = 384;
+const ENCODER_IMG_SIZE: usize = FOV_ENCODER_IMG_SIZE * 4;
 const FOV_CONFIG: FovConfig = FovConfig {
     num_features: DIM_DECODER,
     with_fov_encoder: true,
@@ -185,9 +185,9 @@ impl<B: Backend> Four<B> {
         let inverse_depth_normalized = inverse_depth_normalized.clamp(0., 1.);
 
         let cmap_matrix = utils::cmap(inverse_depth_normalized);
-        let cmap_matrix = utils::drop_alpha(&cmap_matrix);
+        let cmap_matrix_wo_alpha = utils::drop_alpha(cmap_matrix);
 
-        let (raw_vec, _) = cmap_matrix.into_raw_vec_and_offset();
+        let (raw_vec, _) = cmap_matrix_wo_alpha.into_raw_vec_and_offset();
         let Some(img_buffer) =
             ImageBuffer::from_raw(u32::try_from(width)?, u32::try_from(height)?, raw_vec)
         else {

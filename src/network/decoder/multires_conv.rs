@@ -37,15 +37,13 @@ impl<B: Backend> Network<B> for MultiResConv<B> {
 
         let conv0 = dims_encoder.first().and_then(|dim| match dim {
             v if *v == dim_decoder => None,
-            _ => {
-                let conv_config = Conv2dConfig::new([*dim, dim_decoder], [1, 1])
+            _ => Some(
+                Conv2dConfig::new([*dim, dim_decoder], [1, 1])
                     .with_stride([1, 1])
                     .with_padding(PaddingConfig2d::Explicit(0, 0, 0, 0))
                     .with_bias(false)
-                    .init::<B>(device);
-
-                Some(conv_config)
-            }
+                    .init::<B>(device),
+            ),
         });
 
         let mut conv_ops = match conv0 {
@@ -79,7 +77,7 @@ impl<B: Backend> Network<B> for MultiResConv<B> {
 
 impl<B: Backend> Decoder<B, 4> for MultiResConv<B> {
     fn forward(&self, input: DecoderType<B>) -> Result<DecoderOutput<B>> {
-        let DecoderType::MultiResConv(mut encodings) = input else {
+        let DecoderType::MultiResConv(encodings) = input else {
             return Err(anyhow!("Invalid input type"));
         };
 
@@ -135,15 +133,10 @@ impl<B: Backend> Decoder<B, 4> for MultiResConv<B> {
         let (last_fusion_output, _) =
             last_fusion.forward(DecoderType::FeatureFusionBlock2D(features, None))?;
 
+        // Replace the features with the output of the last fusion
         features = last_fusion_output;
 
-        let mut idx = encodings.len();
-        while let Some(encoding) = encodings.pop() {
-            idx -= 1;
-            if idx > 3 {
-                continue;
-            }
-
+        for (idx, encoding) in encodings.into_iter().enumerate().take(4).rev() {
             let conv = reprocessed_convs
                 .get(idx)
                 .ok_or(anyhow!("Unable to get tensor at index {idx}"))?;

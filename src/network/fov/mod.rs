@@ -52,8 +52,8 @@ impl<B: Backend> Network<B> for Fov<B> {
 
         let fov_head0 = SequentialFovNetwork0::new(num_features, device);
 
-        let fov = match with_fov_encoder {
-            true => Self {
+        if with_fov_encoder {
+            return Ok(Self {
                 head: SequentialFovNetwork::new(num_features, None, device),
                 encoder: Some(SequentialFovNetworkEncoder::new(
                     embed_dim,
@@ -61,15 +61,14 @@ impl<B: Backend> Network<B> for Fov<B> {
                     device,
                 )),
                 downsample: Some(fov_head0),
-            },
-            false => Self {
-                head: SequentialFovNetwork::new(num_features, Some(fov_head0), device),
-                encoder: None,
-                downsample: None,
-            },
-        };
+            });
+        }
 
-        Ok(fov)
+        Ok(Self {
+            head: SequentialFovNetwork::new(num_features, Some(fov_head0), device),
+            encoder: None,
+            downsample: None,
+        })
     }
 }
 

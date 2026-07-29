@@ -87,6 +87,6 @@ pub fn cmap(mut input: Array2<f32>) -> Array3<u8> {
 ///
 /// # Arguments
 /// * `rgba` - The RGBA image to drop the alpha channel from
-pub fn drop_alpha(rgba: &Array3<u8>) -> Array3<u8> {
+pub fn drop_alpha(rgba: Array3<u8>) -> Array3<u8> {
     rgba.slice(s![.., .., 0..3]).to_owned() // (H, W, 3)
 }
