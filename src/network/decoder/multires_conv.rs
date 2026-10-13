@@ -8,14 +8,14 @@ use burn::{
         PaddingConfig2d,
         conv::{Conv2d, Conv2dConfig},
     },
-    prelude::Backend,
+    prelude::Device,
 };
 
 #[derive(Debug, Module)]
-pub struct MultiResConv<B: Backend> {
+pub struct MultiResConv {
     dims_encoder_len: usize,
-    convs: Vec<Conv2d<B>>,
-    fusions: Vec<FeatureFusionBlock2D<B>>,
+    convs: Vec<Conv2d>,
+    fusions: Vec<FeatureFusionBlock2D>,
 }
 
 #[derive(Debug, Default)]
@@ -24,8 +24,8 @@ pub struct MultiResDecoderConfig {
     pub dim_decoder: usize,
 }
 
-impl<B: Backend> Network<B> for MultiResConv<B> {
-    fn new(config: NetworkConfig, device: &B::Device) -> Result<Self> {
+impl Network for MultiResConv {
+    fn new(config: NetworkConfig, device: &Device) -> Result<Self> {
         let NetworkConfig::Decoder(config) = config else {
             return Err(anyhow!("Invalid network configuration"));
         };
@@ -42,7 +42,7 @@ impl<B: Backend> Network<B> for MultiResConv<B> {
                     .with_stride([1, 1])
                     .with_padding(PaddingConfig2d::Explicit(0, 0, 0, 0))
                     .with_bias(false)
-                    .init::<B>(device),
+                    .init(device),
             ),
         });
 
@@ -56,12 +56,12 @@ impl<B: Backend> Network<B> for MultiResConv<B> {
                 .with_stride([1, 1])
                 .with_padding(PaddingConfig2d::Explicit(1, 1, 1, 1))
                 .with_bias(false)
-                .init::<B>(device);
+                .init(device);
 
             conv_ops.push(conv_config);
         });
 
-        let fusions: Vec<FeatureFusionBlock2D<B>> = dims_encoder
+        let fusions: Vec<FeatureFusionBlock2D> = dims_encoder
             .iter()
             .enumerate()
             .map(|(idx, _)| FeatureFusionBlock2D::new(dim_decoder, idx != 0, device))
@@ -75,8 +75,8 @@ impl<B: Backend> Network<B> for MultiResConv<B> {
     }
 }
 
-impl<B: Backend> Decoder<B, 4> for MultiResConv<B> {
-    fn forward(&self, input: DecoderType<B>) -> Result<DecoderOutput<B>> {
+impl Decoder<4> for MultiResConv {
+    fn forward(&self, input: DecoderType) -> Result<DecoderOutput> {
         let DecoderType::MultiResConv(encodings) = input else {
             return Err(anyhow!("Invalid input type"));
         };
@@ -131,7 +131,7 @@ impl<B: Backend> Decoder<B, 4> for MultiResConv<B> {
             .ok_or(anyhow!("Unable to get the latest fusion"))?;
 
         let (last_fusion_output, _) =
-            last_fusion.forward(DecoderType::FeatureFusionBlock2D(features, None))?;
+            last_fusion.forward(DecoderType::FeatureFusionBlock2D(features, Box::from(None)))?;
 
         // Replace the features with the output of the last fusion
         features = last_fusion_output;
@@ -154,7 +154,7 @@ impl<B: Backend> Decoder<B, 4> for MultiResConv<B> {
 
             let (feat, _) = fusion.forward(DecoderType::FeatureFusionBlock2D(
                 features,
-                Some(features_idx),
+                Box::from(Some(features_idx)),
             ))?;
 
             features = feat;
@@ -166,17 +166,15 @@ impl<B: Backend> Decoder<B, 4> for MultiResConv<B> {
 
 #[cfg(test)]
 mod tests {
-    use crate::{Decoder, DecoderType};
-    use burn::backend::Wgpu;
-    use burn::tensor::{Tensor, TensorData};
-    use ndarray::Array4;
-
     use crate::network::{
         Network, NetworkConfig,
         decoder::multires_conv::{MultiResConv, MultiResDecoderConfig},
     };
+    use crate::{Decoder, DecoderType};
+    use burn::tensor::{Tensor, TensorData};
+    use ndarray::Array4;
 
-    fn create_decoder() -> MultiResConv<Wgpu> {
+    fn create_decoder() -> MultiResConv {
         let device = Default::default();
 
         let decoder = MultiResConv::new(
@@ -202,7 +200,7 @@ mod tests {
             ndarray_npy::read_npy("testdata/tensors_data/decoder/encodings_x_latent0_features.npy")
                 .unwrap();
         let (x_latent0_data, _) = x_latent0_features_np.into_raw_vec_and_offset();
-        let x_latent0_features: Tensor<Wgpu, 4> =
+        let x_latent0_features: Tensor<4> =
             Tensor::from_data(TensorData::new(x_latent0_data, [1, 256, 768, 768]), &device);
 
         // x_latent1_features
@@ -210,7 +208,7 @@ mod tests {
             ndarray_npy::read_npy("testdata/tensors_data/decoder/encodings_x_latent1_features.npy")
                 .unwrap();
         let (x_latent1_data, _) = x_latent1_features_np.into_raw_vec_and_offset();
-        let x_latent1_features: Tensor<Wgpu, 4> =
+        let x_latent1_features: Tensor<4> =
             Tensor::from_data(TensorData::new(x_latent1_data, [1, 256, 384, 384]), &device);
 
         // x0_features
@@ -218,7 +216,7 @@ mod tests {
             ndarray_npy::read_npy("testdata/tensors_data/decoder/encodings_x0_features.npy")
                 .unwrap();
         let (x0_features_data, _) = x0_features_np.into_raw_vec_and_offset();
-        let x0_features: Tensor<Wgpu, 4> = Tensor::from_data(
+        let x0_features: Tensor<4> = Tensor::from_data(
             TensorData::new(x0_features_data, [1, 512, 192, 192]),
             &device,
         );
@@ -228,7 +226,7 @@ mod tests {
             ndarray_npy::read_npy("testdata/tensors_data/decoder/encodings_x1_features.npy")
                 .unwrap();
         let (x1_features_data, _) = x1_features_np.into_raw_vec_and_offset();
-        let x1_features: Tensor<Wgpu, 4> = Tensor::from_data(
+        let x1_features: Tensor<4> = Tensor::from_data(
             TensorData::new(x1_features_data, [1, 1024, 96, 96]),
             &device,
         );
@@ -238,7 +236,7 @@ mod tests {
             ndarray_npy::read_npy("testdata/tensors_data/decoder/encodings_x_global_features.npy")
                 .unwrap();
         let (x0_global_data, _) = x_global_features_np.into_raw_vec_and_offset();
-        let x_global_features: Tensor<Wgpu, 4> =
+        let x_global_features: Tensor<4> =
             Tensor::from_data(TensorData::new(x0_global_data, [1, 1024, 48, 48]), &device);
 
         let decoder = create_decoder();

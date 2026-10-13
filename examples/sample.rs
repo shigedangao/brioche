@@ -1,24 +1,12 @@
 #![recursion_limit = "256"]
 use brioche::four::{Four, FourConfig};
+use burn::prelude::Device;
 #[cfg(feature = "f16")]
 use burn::tensor::f16;
 use clap::Parser;
 use spinners::{Spinner, Spinners};
 use std::sync::LazyLock;
-use std::time::Instant;
-use std::time::{SystemTime, UNIX_EPOCH};
-
-#[cfg(feature = "metal")]
-use burn::backend::Metal as Backend;
-
-#[cfg(feature = "cuda")]
-use burn::backend::Cuda as Backend;
-
-#[cfg(feature = "rocm")]
-use burn::backend::Rocm as Backend;
-
-#[cfg(feature = "wgpu")]
-use burn::backend::Wgpu as Backend;
+use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
 static CONFIG: LazyLock<FourConfig<&'static str>> = cfg_select! {
     feature = "f32" => LazyLock::new(|| FourConfig {
@@ -73,8 +61,11 @@ fn main() {
         false => *CONFIG,
     };
 
+    // Use a device using the default backend
+    let device = Device::default();
+
     println!("Running sample of loaf 🍞");
-    let four = Four::<Backend>::new::<&'static str>(config).unwrap();
+    let four = Four::new::<&'static str>(config, device).unwrap();
 
     println!("model initialized at {:?}", t.elapsed());
 

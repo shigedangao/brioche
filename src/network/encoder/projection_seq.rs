@@ -4,19 +4,19 @@ use burn::{
         PaddingConfig2d,
         conv::{Conv2d, Conv2dConfig, ConvTranspose2d, ConvTranspose2dConfig},
     },
-    prelude::Backend,
+    prelude::Device,
     tensor::Tensor,
 };
 
 #[derive(Debug, Module)]
-pub struct ProjectionSeq<B: Backend> {
+pub struct ProjectionSeq {
     // Conv2d use for the projection
-    conv2d: Conv2d<B>,
+    conv2d: Conv2d,
     // ConvTranspose2d use for the upsampling
-    blocks: Vec<ConvTranspose2d<B>>,
+    blocks: Vec<ConvTranspose2d>,
 }
 
-impl<B: Backend> ProjectionSeq<B> {
+impl ProjectionSeq {
     /// Create a new `ProjectionSeq` module.
     ///
     /// # Arguments
@@ -30,7 +30,7 @@ impl<B: Backend> ProjectionSeq<B> {
         dims_int: Option<usize>,
         dims_out: usize,
         upsample_layer: usize,
-        device: &B::Device,
+        device: &Device,
     ) -> Self {
         // Upsampling
         let mut blocks = Vec::with_capacity(upsample_layer);
@@ -51,7 +51,7 @@ impl<B: Backend> ProjectionSeq<B> {
                     .with_stride([2, 2])
                     .with_padding([0, 0])
                     .with_bias(false)
-                    .init::<B>(device),
+                    .init(device),
             );
         }
 
@@ -61,7 +61,7 @@ impl<B: Backend> ProjectionSeq<B> {
                 .with_stride([1, 1])
                 .with_padding(PaddingConfig2d::Explicit(0, 0, 0, 0))
                 .with_bias(false)
-                .init::<B>(device),
+                .init(device),
             blocks,
         }
     }
@@ -74,7 +74,7 @@ impl<B: Backend> ProjectionSeq<B> {
     /// # Arguments
     ///
     /// * `tensor` - The input tensor to the `ProjectionSeq` module.
-    pub fn forward(&self, tensor: Tensor<B, 4>) -> Tensor<B, 4> {
+    pub fn forward(&self, tensor: Tensor<4>) -> Tensor<4> {
         let mut output = self.conv2d.forward(tensor);
         for block in &self.blocks {
             output = block.forward(output);

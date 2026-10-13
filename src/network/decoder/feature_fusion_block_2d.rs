@@ -7,28 +7,28 @@ use burn::nn::{
     PaddingConfig2d, Relu,
     conv::{Conv2d, Conv2dConfig, ConvTranspose2d, ConvTranspose2dConfig},
 };
-use burn::prelude::Backend;
+use burn::prelude::Device;
 
 /// Feature fusion block for 2D images.
 ///
 /// This implements the `FeatureFusionBlock2d` class from the deco
 /// @link <https://github.com/apple/ml-depth-pro/blob/9efe5c1def37a26c5367a71df664b18e1306c708/src/depth_pro/network/decoder.py#L121>
 #[derive(Debug, Module)]
-pub struct FeatureFusionBlock2D<B: Backend> {
+pub struct FeatureFusionBlock2D {
     num_features: usize,
-    deconv: Option<ConvTranspose2d<B>>,
-    outconv: Conv2d<B>,
-    resnet1: ResidualBlock<B>,
-    resnet2: ResidualBlock<B>,
+    deconv: Option<ConvTranspose2d>,
+    outconv: Conv2d,
+    resnet1: ResidualBlock,
+    resnet2: ResidualBlock,
 }
 
-impl<B: Backend> FeatureFusionBlock2D<B> {
-    pub fn new(num_features: usize, deconv: bool, device: &B::Device) -> Self {
+impl FeatureFusionBlock2D {
+    pub fn new(num_features: usize, deconv: bool, device: &Device) -> Self {
         let conv_config = Conv2dConfig::new([num_features, num_features], [3, 3])
             .with_stride([1, 1])
             .with_padding(PaddingConfig2d::Explicit(1, 1, 1, 1))
             .with_bias(true)
-            .init::<B>(device);
+            .init(device);
 
         let resnet1 = ResidualBlock::new(vec![
             SequentialNNModule {
@@ -62,7 +62,7 @@ impl<B: Backend> FeatureFusionBlock2D<B> {
             .with_stride([1, 1])
             .with_padding(PaddingConfig2d::Explicit(0, 0, 0, 0))
             .with_bias(true)
-            .init::<B>(device);
+            .init(device);
 
         let mut ffb2d = Self {
             num_features,
@@ -80,7 +80,7 @@ impl<B: Backend> FeatureFusionBlock2D<B> {
                     .with_stride([2, 2])
                     .with_padding([0, 0])
                     .with_bias(false)
-                    .init::<B>(device),
+                    .init(device),
             );
         }
 
@@ -88,13 +88,13 @@ impl<B: Backend> FeatureFusionBlock2D<B> {
     }
 }
 
-impl<B: Backend> Decoder<B, 4> for FeatureFusionBlock2D<B> {
-    fn forward(&self, arg: DecoderType<B>) -> Result<DecoderOutput<B>> {
+impl Decoder<4> for FeatureFusionBlock2D {
+    fn forward(&self, arg: DecoderType) -> Result<DecoderOutput> {
         let DecoderType::FeatureFusionBlock2D(mut x0, x1) = arg else {
             return Err(anyhow!("Invalid input type"));
         };
 
-        if let Some(x1) = x1 {
+        if let Some(x1) = *x1 {
             let (res, _) = self.resnet1.forward(DecoderType::ResidualBlock(x1))?;
             // Equivalent of x = self.skip_add.add(x, res)
             x0 = x0 + res;

@@ -1,6 +1,6 @@
 use super::{Network, NetworkConfig};
 use anyhow::{Result, anyhow};
-use burn::{Tensor, module::Module, prelude::Backend};
+use burn::{Tensor, module::Module, prelude::Device};
 use encoder_seq::SequentialFovNetworkEncoder;
 use sequential::{SequentialFovNetwork, SequentialFovNetwork0};
 
@@ -12,10 +12,10 @@ mod sequential;
 ///
 /// @link <https://github.com/apple/ml-depth-pro/blob/9efe5c1def37a26c5367a71df664b18e1306c708/src/depth_pro/network/fov.py#L14>
 #[derive(Debug, Module)]
-pub struct Fov<B: Backend> {
-    head: SequentialFovNetwork<B>,
-    encoder: Option<SequentialFovNetworkEncoder<B>>,
-    downsample: Option<SequentialFovNetwork0<B>>,
+pub struct Fov {
+    head: SequentialFovNetwork,
+    encoder: Option<SequentialFovNetworkEncoder>,
+    downsample: Option<SequentialFovNetwork0>,
 }
 
 #[derive(Debug, Clone)]
@@ -25,7 +25,7 @@ pub struct FovConfig {
     pub embed_dim: usize,
 }
 
-impl<B: Backend> Network<B> for Fov<B> {
+impl Network for Fov {
     /// Create a new `FovNetwork` instance.
     /// /!\ Note that we could not pass the `fov_encoder` directly as the Session does not have the Copy & Clone trait.
     ///     As a result, it's not possible to pass the `fov_encoder` as an Option
@@ -39,7 +39,7 @@ impl<B: Backend> Network<B> for Fov<B> {
     /// # Returns
     ///
     /// A new `FovNetwork` instance.
-    fn new(config: NetworkConfig, device: &B::Device) -> Result<Self> {
+    fn new(config: NetworkConfig, device: &Device) -> Result<Self> {
         let NetworkConfig::Fov(config) = config else {
             return Err(anyhow!("Invalid network configuration"));
         };
@@ -72,7 +72,7 @@ impl<B: Backend> Network<B> for Fov<B> {
     }
 }
 
-impl<B: Backend> Fov<B> {
+impl Fov {
     /// Forward compute the output of the network.
     ///
     /// # Arguments
@@ -83,7 +83,7 @@ impl<B: Backend> Fov<B> {
     ///
     /// # Returns
     /// The output tensor.
-    pub fn forward(&mut self, x: Tensor<B, 3>, lowres_feature: Tensor<B, 4>) -> Tensor<B, 4> {
+    pub fn forward(&mut self, x: Tensor<3>, lowres_feature: Tensor<4>) -> Tensor<4> {
         match self.encoder {
             Some(ref mut encoder) => {
                 // Encode the interpolated features

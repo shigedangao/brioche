@@ -1,4 +1,4 @@
-use burn::prelude::Backend;
+use burn::prelude::Device;
 use burn::tensor::TensorData;
 use burn::{Tensor, tensor::FloatDType};
 use colorgrad::Gradient;
@@ -21,11 +21,7 @@ use ndarray::{Array2, Array3, s};
 /// # Arguments
 /// * `img` - The image to preprocess.
 /// * `device` - The device to place the tensor on.
-pub fn preprocess_image<B: Backend>(
-    img: &DynamicImage,
-    device: &B::Device,
-    is_half_precision: bool,
-) -> Tensor<B, 3> {
+pub fn preprocess_image(img: &DynamicImage, device: &Device, is_half_precision: bool) -> Tensor<3> {
     let rgb_img = img.to_rgb32f();
     let (width, height) = rgb_img.dimensions();
 
@@ -34,8 +30,8 @@ pub fn preprocess_image<B: Backend>(
     let tensor = Tensor::from_floats(tensor_data, device).permute([2, 0, 1]);
 
     // Create mean and std as 1D tensors & reshape to (3, 1, 1) for broadcasting across H and W dimensions
-    let mean = Tensor::<B, 1>::from_floats([0.5, 0.5, 0.5], device).reshape([3, 1, 1]);
-    let std = Tensor::<B, 1>::from_floats([0.5, 0.5, 0.5], device).reshape([3, 1, 1]);
+    let mean = Tensor::<1>::from_floats([0.5, 0.5, 0.5], device).reshape([3, 1, 1]);
+    let std = Tensor::<1>::from_floats([0.5, 0.5, 0.5], device).reshape([3, 1, 1]);
 
     // normalize the tensor
     let mut tensor = (tensor - mean) / std;
