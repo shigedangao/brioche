@@ -1,9 +1,8 @@
 use crate::MixedFloats;
 use crate::four::FourConfig;
 use anyhow::Result;
-use burn::{Tensor, prelude::Backend};
+use burn::{Tensor, prelude::Device};
 #[cfg(feature = "ort_onnx")]
-use ort::value::Shape;
 use std::thread;
 
 #[cfg(feature = "ort_onnx")]
@@ -17,13 +16,13 @@ pub mod common_burn;
 pub mod patch_burn;
 
 #[derive(Debug)]
-pub struct VitResult<B: Backend> {
-    pub tensor: Tensor<B, 3>,
-    pub hooks0: Option<Tensor<B, 3>>,
-    pub hooks1: Option<Tensor<B, 3>>,
+pub struct VitResult {
+    pub tensor: Tensor<3>,
+    pub hooks0: Option<Tensor<3>>,
+    pub hooks1: Option<Tensor<3>>,
 }
 
-pub trait VitOps<B: Backend> {
+pub trait VitOps {
     /// Forward pass of the `ViT` model.
     ///
     /// # Arguments
@@ -33,25 +32,22 @@ pub trait VitOps<B: Backend> {
     /// # Returns
     /// A `Result` containing the output tensor of shape (`batch_size`, `num_patches`, `embedding_dim`),
     /// and two optional hooks for intermediate results.
-    fn forward<F: MixedFloats>(
-        &mut self,
-        input: Tensor<B, 4>,
-        device: &B::Device,
-    ) -> Result<VitResult<B>>;
+    fn forward<F: MixedFloats>(&mut self, input: Tensor<4>, device: &Device) -> Result<VitResult>;
 }
 
 pub(crate) mod utils {
-    use super::{Backend, FourConfig, Result, Shape, Tensor, thread, utils};
+    use super::{FourConfig, Result};
     #[cfg(feature = "burn_onnx")]
     use crate::vit::{common_burn::CommonVitModel, patch_burn::PatchVitModel};
     #[cfg(feature = "ort_onnx")]
     use {
+        super::{Device, Tensor, thread, utils},
         crate::{
             MixedFloats,
             vit::{common::CommonVitModel, patch::PatchVitModel},
         },
         burn::tensor::{Shape as BurnShape, TensorData},
-        ort::session::SessionOutputs,
+        ort::{session::SessionOutputs, value::Shape},
     };
 
     /// Extracts the shape of a tensor into a fixed-size array.
@@ -86,18 +82,18 @@ pub(crate) mod utils {
     /// # Returns
     /// A `Result` containing the burn tensor.
     #[cfg(feature = "ort_onnx")]
-    pub fn get_burn_tensor_from_ort<B: Backend, const S: usize, F: MixedFloats>(
+    pub fn get_burn_tensor_from_ort<const S: usize, F: MixedFloats>(
         output: &SessionOutputs,
         output_ident: &str,
-        device: &B::Device,
-    ) -> Result<Tensor<B, S>> {
+        device: &Device,
+    ) -> Result<Tensor<S>> {
         let tensor = match output.get(output_ident) {
             Some(output) => {
                 let (shape, data) = output.try_extract_tensor::<F>()?;
                 let shape_slice = utils::extract_tensor_shape::<S>(shape)?;
                 let tensor_data = TensorData::new(data.to_vec(), BurnShape::new(shape_slice));
 
-                Tensor::<B, S>::from_floats(tensor_data, device)
+                Tensor::<S>::from_floats(tensor_data, device)
             }
             None => {
                 return Err(anyhow::anyhow!(

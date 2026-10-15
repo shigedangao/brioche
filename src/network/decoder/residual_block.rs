@@ -3,21 +3,20 @@ use anyhow::{Result, anyhow};
 use burn::Tensor;
 use burn::module::Module;
 use burn::nn::{BatchNorm, Relu, modules::conv::Conv2d};
-use burn::prelude::Backend;
 
 /// Sequential neural network module
 ///
 /// This implements the `_create_block` method in python.
 /// for reference please see: `depth_pro/network/decoder.py L:191`
 #[derive(Debug, Module)]
-pub struct SequentialNNModule<B: Backend> {
+pub struct SequentialNNModule {
     pub relu: Relu,
-    pub conv2d: Conv2d<B>,
-    pub batch_norm: Option<BatchNorm<B>>,
+    pub conv2d: Conv2d,
+    pub batch_norm: Option<BatchNorm>,
 }
 
-impl<B: Backend> SequentialNNModule<B> {
-    fn forward(&self, arg: Tensor<B, 4>) -> Tensor<B, 4> {
+impl SequentialNNModule {
+    fn forward(&self, arg: Tensor<4>) -> Tensor<4> {
         let x = self.relu.forward(arg);
         let x = self.conv2d.forward(x);
 
@@ -33,18 +32,18 @@ impl<B: Backend> SequentialNNModule<B> {
 /// Based on the implementation in `depth_pro/network/decoder.py` L:96
 /// /!\ Note that the shortcut is not implemented as it seems unused.
 #[derive(Debug, Module)]
-pub struct ResidualBlock<B: Backend> {
-    sequential: Vec<SequentialNNModule<B>>,
+pub struct ResidualBlock {
+    sequential: Vec<SequentialNNModule>,
 }
 
-impl<B: Backend> ResidualBlock<B> {
-    pub fn new(sequential: Vec<SequentialNNModule<B>>) -> Self {
+impl ResidualBlock {
+    pub fn new(sequential: Vec<SequentialNNModule>) -> Self {
         Self { sequential }
     }
 }
 
-impl<B: Backend> Decoder<B, 4> for ResidualBlock<B> {
-    fn forward(&self, arg: DecoderType<B>) -> Result<DecoderOutput<B>> {
+impl Decoder<4> for ResidualBlock {
+    fn forward(&self, arg: DecoderType) -> Result<DecoderOutput> {
         let DecoderType::ResidualBlock(tensor) = arg else {
             return Err(anyhow!("Invalid decoder type"));
         };
@@ -74,7 +73,6 @@ mod tests {
     use super::*;
     use burn::{
         Tensor,
-        backend::Wgpu,
         module::Param,
         nn::{PaddingConfig2d, conv::Conv2dConfig},
     };
@@ -111,7 +109,7 @@ mod tests {
         //     ]
         // ]
         let tensor =
-            Tensor::<Wgpu, 4>::from_data([[[[1., 2.], [3., 4.]], [[5., 6.], [7., 8.]]]], &device);
+            Tensor::<4>::from_data([[[[1., 2.], [3., 4.]], [[5., 6.], [7., 8.]]]], &device);
 
         // This is based on the following python code
         //
@@ -130,11 +128,11 @@ mod tests {
             .with_stride([1, 1])
             .with_padding(PaddingConfig2d::Explicit(1, 1, 1, 1))
             .with_bias(true)
-            .init::<Wgpu>(&device);
+            .init(&device);
 
         // The weight tensor shape is [output_channels, input_channels, kernel_height, kernel_width]
         conv_config.weight = Param::from_tensor(Tensor::full([2, 2, 3, 3], 1., &device));
-        conv_config.bias = Some(Param::from_tensor(Tensor::<Wgpu, 1>::from_data(
+        conv_config.bias = Some(Param::from_tensor(Tensor::<1>::from_data(
             [0.5, -0.5],
             &device,
         )));
@@ -161,7 +159,7 @@ mod tests {
             .expect("Expect to have compute the residual block tensor")
             .0
             .to_data();
-        let nn_sequential_second_layers: Vec<f32> = computed_tensor_two.to_vec().unwrap();
+        let nn_sequential_second_layers: Vec<f32> = computed_tensor_two.try_to_vec().unwrap();
 
         assert_eq!(
             nn_sequential_second_layers,

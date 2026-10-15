@@ -15,7 +15,7 @@ use burn::{
         conv::{Conv2d, Conv2dConfig, ConvTranspose2d, ConvTranspose2dConfig},
         interpolate::{Interpolate2dConfig, InterpolateMode},
     },
-    prelude::Backend,
+    prelude::Device,
 };
 use projection_seq::ProjectionSeq;
 
@@ -38,24 +38,24 @@ const fn compute_patch_stride(overlap_ratio: f64) -> f64 {
 ///
 /// /!\ In the depth-pro implementation. Most of the upsample layers are represented by an array of a mix of `Conv2d` and `ConvTranspose2d` layers. As in Rust this is not possible to perform that. We wrap this operation in a `ProjectionSeq` struct.
 #[derive(Debug, Module)]
-pub struct Encoder<B: Backend> {
-    upsample_latent0: ProjectionSeq<B>,
-    upsample_latent1: ProjectionSeq<B>,
-    upsample0: ProjectionSeq<B>,
-    upsample1: ProjectionSeq<B>,
-    upsample2: ProjectionSeq<B>,
-    upsample_lowres: ConvTranspose2d<B>,
-    fuse_lowres: Conv2d<B>,
+pub struct Encoder {
+    upsample_latent0: ProjectionSeq,
+    upsample_latent1: ProjectionSeq,
+    upsample0: ProjectionSeq,
+    upsample1: ProjectionSeq,
+    upsample2: ProjectionSeq,
+    upsample_lowres: ConvTranspose2d,
+    fuse_lowres: Conv2d,
     out_size: usize,
 }
 
 #[derive(Debug)]
-pub struct EncoderOutput<B: Backend> {
-    pub x_latent0: Tensor<B, 4>,
-    pub x_latent1: Tensor<B, 4>,
-    pub x0: Tensor<B, 4>,
-    pub x1: Tensor<B, 4>,
-    pub x: Tensor<B, 4>,
+pub struct EncoderOutput {
+    pub x_latent0: Tensor<4>,
+    pub x_latent1: Tensor<4>,
+    pub x0: Tensor<4>,
+    pub x1: Tensor<4>,
+    pub x: Tensor<4>,
 }
 
 #[derive(Debug, Default)]
@@ -67,7 +67,7 @@ pub struct EncoderConfig {
     pub out_size: usize,
 }
 
-impl<B: Backend> Network<B> for Encoder<B> {
+impl Network for Encoder {
     /// Create a new encoder.
     ///
     /// # Arguments
@@ -77,7 +77,7 @@ impl<B: Backend> Network<B> for Encoder<B> {
     /// * `decoder_features` - The decoder features.
     /// * `device` - The device to use.
     /// * `out_size` - The output size.
-    fn new(config: NetworkConfig, device: &B::Device) -> Result<Self> {
+    fn new(config: NetworkConfig, device: &Device) -> Result<Self> {
         let NetworkConfig::Encoder(config) = config else {
             return Err(anyhow!("Invalid network configuration"));
         };
@@ -117,7 +117,7 @@ impl<B: Backend> Network<B> for Encoder<B> {
                 .with_stride([2, 2])
                 .with_padding([0, 0])
                 .with_bias(true)
-                .init::<B>(device);
+                .init(device);
 
         let fuse_lowres = Conv2dConfig::new(
             [dims_encoder_three + dims_encoder_three, dims_encoder_three],
@@ -126,7 +126,7 @@ impl<B: Backend> Network<B> for Encoder<B> {
         .with_stride([1, 1])
         .with_padding(PaddingConfig2d::Explicit(0, 0, 0, 0))
         .with_bias(true)
-        .init::<B>(device);
+        .init(device);
 
         Ok(Self {
             upsample_latent0,
@@ -141,12 +141,12 @@ impl<B: Backend> Network<B> for Encoder<B> {
     }
 }
 
-impl<B: Backend> Encoder<B> {
+impl Encoder {
     /// Create a pyramid of tensors.
     ///
     /// # Arguments
     /// * `x` - The input tensor.
-    fn create_pyramid(x: Tensor<B, 4>) -> (Tensor<B, 4>, Tensor<B, 4>, Tensor<B, 4>) {
+    fn create_pyramid(x: Tensor<4>) -> (Tensor<4>, Tensor<4>, Tensor<4>) {
         let x1_interpolate = Interpolate2dConfig::new()
             .with_scale_factor(Some([0.5, 0.5]))
             .with_mode(InterpolateMode::Linear)
@@ -175,7 +175,7 @@ impl<B: Backend> Encoder<B> {
     /// * `input` - The input tensor.
     /// * `patch_stride` - The patch stride.
     #[allow(clippy::cast_sign_loss, clippy::cast_possible_truncation)]
-    fn split(input: Tensor<B, 4>, patch_stride: f64) -> Tensor<B, 4> {
+    fn split(input: Tensor<4>, patch_stride: f64) -> Tensor<4> {
         let [batch, chan, _, _] = input.dims();
         let unfold_config = Unfold4dConfig::new([PATCH_SIZE, PATCH_SIZE])
             .with_stride([patch_stride as usize, patch_stride as usize])
@@ -196,7 +196,7 @@ impl<B: Backend> Encoder<B> {
     /// * `input` - The input tensor.
     /// * `width` - The width of the feature map.
     /// * `height` - The height of the feature map.
-    fn reshape_feature(embeddings: Tensor<B, 3>, width: usize, height: usize) -> Tensor<B, 4> {
+    fn reshape_feature(embeddings: Tensor<3>, width: usize, height: usize) -> Tensor<4> {
         let [batch, hw, ch] = embeddings.shape().dims();
 
         let embeddings_slice = embeddings.slice([0..batch, 1..hw, 0..ch]);
@@ -212,7 +212,7 @@ impl<B: Backend> Encoder<B> {
     /// * `input` - The input tensor.
     /// * `batch_size` - The batch size.
     /// * `padding` - The padding.
-    fn merge(input: &Tensor<B, 4>, batch_size: usize, padding: usize) -> Tensor<B, 4> {
+    fn merge(input: &Tensor<4>, batch_size: usize, padding: usize) -> Tensor<4> {
         let [b, chan, height, width] = input.shape().dims();
 
         let steps = (b / batch_size).isqrt();
@@ -263,11 +263,11 @@ impl<B: Backend> Encoder<B> {
     /// * `device` - The device.
     pub fn forward<F: MixedFloats>(
         &self,
-        input: Tensor<B, 4>,
+        input: Tensor<4>,
         mut patch_encoder: PatchVitModel,
         mut image_encoder: CommonVitModel,
-        device: &B::Device,
-    ) -> Result<EncoderOutput<B>> {
+        device: &Device,
+    ) -> Result<EncoderOutput> {
         let Some(batch_size) = input.shape().first().copied() else {
             return Err(anyhow!("Unable to determine batch size"));
         };
@@ -380,13 +380,13 @@ impl<B: Backend> Encoder<B> {
 }
 
 #[cfg(test)]
+#[cfg(feature = "ort_onnx")]
 mod tests {
     use super::*;
-    use burn::backend::Wgpu;
     use burn::tensor::TensorData;
     use ndarray::Array4;
 
-    fn create_encoder_with_weight() -> Encoder<Wgpu> {
+    fn create_encoder_with_weight() -> Encoder {
         let device = Default::default();
 
         let encoder_config = EncoderConfig {
@@ -397,7 +397,7 @@ mod tests {
             out_size: 384 / 16,
         };
 
-        let encoder = Encoder::<Wgpu>::new(NetworkConfig::Encoder(encoder_config), &device)
+        let encoder = Encoder::new(NetworkConfig::Encoder(encoder_config), &device)
             .unwrap()
             .with_record("butter/weights/encoder_only.pt")
             .unwrap();
@@ -420,8 +420,7 @@ mod tests {
         let x_matrix: Array4<f32> =
             ndarray_npy::read_npy("testdata/tensors_data/fov/x.npy").unwrap();
         let (x_data, _) = x_matrix.into_raw_vec_and_offset();
-        let x: Tensor<Wgpu, 4> =
-            Tensor::from_data(TensorData::new(x_data, [1, 3, 1536, 1536]), &device);
+        let x: Tensor<4> = Tensor::from_data(TensorData::new(x_data, [1, 3, 1536, 1536]), &device);
 
         let encoder = create_encoder_with_weight();
         let res = encoder

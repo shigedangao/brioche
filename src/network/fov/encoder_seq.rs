@@ -2,7 +2,7 @@ use burn::{
     Tensor,
     module::Module,
     nn::{Linear, LinearConfig},
-    prelude::Backend,
+    prelude::Device,
 };
 
 /// Sequential Foveal Vision Transformer (FOV) network encoder.
@@ -12,18 +12,18 @@ use burn::{
 ///
 /// /!\ Note that this is tightly linked to the `fov_encoder` module that needs to be converted with onnx.
 #[derive(Debug, Module)]
-pub struct SequentialFovNetworkEncoder<B: Backend> {
-    pub linear: Linear<B>,
+pub struct SequentialFovNetworkEncoder {
+    pub linear: Linear,
 }
 
-impl<B: Backend> SequentialFovNetworkEncoder<B> {
+impl SequentialFovNetworkEncoder {
     /// Create a new `SequentialFovNetworkEncoder` module.
     ///
     /// # Arguments
     /// * `embed_dim` - The input dimension.
     /// * `num_features` - The output dimension.
     /// * `device` - The device to use.
-    pub fn new(embed_dim: usize, num_features: usize, device: &B::Device) -> Self {
+    pub fn new(embed_dim: usize, num_features: usize, device: &Device) -> Self {
         Self {
             linear: LinearConfig::new(embed_dim, num_features / 2).init(device),
         }
@@ -35,7 +35,7 @@ impl<B: Backend> SequentialFovNetworkEncoder<B> {
     /// * `input` - The input tensor.
     /// * `device` - The device to use.
     /// * `encoder` - The `CommonVitModel` encoder.
-    pub fn forward(&mut self, input: Tensor<B, 3>) -> Tensor<B, 3> {
+    pub fn forward(&mut self, input: Tensor<3>) -> Tensor<3> {
         self.linear.forward(input)
     }
 }

@@ -2,7 +2,7 @@ use crate::model::image::Model as ImageModel;
 use crate::vit::VitOps;
 use crate::{model::fov::Model as FovModel, vit::VitResult};
 use anyhow::Result;
-use burn::prelude::Backend;
+use burn::prelude::Device;
 
 /// CommonVitModelListRepresents the kind of common vit model to use.
 pub enum CommonVitModelList {
@@ -26,15 +26,15 @@ impl CommonVitModel {
     }
 }
 
-impl<B: Backend> VitOps<B> for CommonVitModel {
+impl VitOps for CommonVitModel {
     fn forward<F: crate::MixedFloats>(
         &mut self,
-        input: burn::Tensor<B, 4>,
-        _: &B::Device,
-    ) -> Result<super::VitResult<B>> {
+        input: burn::Tensor<4>,
+        _: &Device,
+    ) -> Result<super::VitResult> {
         let tensor = match self.kind {
-            CommonVitModelList::Fov => FovModel::<B>::default().forward(input),
-            CommonVitModelList::Image => ImageModel::<B>::default().forward(input),
+            CommonVitModelList::Fov => FovModel::default().forward(input),
+            CommonVitModelList::Image => ImageModel::default().forward(input),
         };
 
         Ok(VitResult {

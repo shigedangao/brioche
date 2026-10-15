@@ -1,7 +1,7 @@
 use super::{VitOps, VitResult, utils};
 use crate::MixedFloats;
 use anyhow::anyhow;
-use burn::{prelude::Backend, tensor::Tensor};
+use burn::{prelude::Device, tensor::Tensor};
 use ort::{
     memory::Allocator,
     session::{
@@ -40,7 +40,7 @@ impl CommonVitModel {
     }
 }
 
-impl<B: Backend> VitOps<B> for CommonVitModel {
+impl VitOps for CommonVitModel {
     /// Perform a forward pass on the input data.
     ///
     ///
@@ -49,13 +49,13 @@ impl<B: Backend> VitOps<B> for CommonVitModel {
     /// * `device` - Device to use for inference.
     fn forward<F: MixedFloats>(
         &mut self,
-        input: Tensor<B, 4>,
-        device: &B::Device,
-    ) -> Result<VitResult<B>, anyhow::Error> {
+        input: Tensor<4>,
+        device: &Device,
+    ) -> Result<VitResult, anyhow::Error> {
         // /!\ Some overhead happened when performing this operation for the FOV tensor.
         let data = input
             .try_into_data()?
-            .to_vec()
+            .try_to_vec()
             .map_err(|err| anyhow!("Unable to convert the tensor to a vector due to {err}"))?;
 
         let tensor: OrtTensor<F> = OrtTensor::from_array(([1, 3, 384, 384], data))?;
@@ -73,7 +73,7 @@ impl<B: Backend> VitOps<B> for CommonVitModel {
             .map_err(|err| anyhow!("Unable to bind output due to: {err}"))?;
 
         let output = self.model.run_binding(&binding)?;
-        let tensor = utils::get_burn_tensor_from_ort::<B, 3, F>(&output, "tokens", device)?;
+        let tensor = utils::get_burn_tensor_from_ort::<3, F>(&output, "tokens", device)?;
 
         Ok(VitResult {
             tensor,

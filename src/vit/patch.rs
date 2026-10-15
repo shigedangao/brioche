@@ -1,7 +1,7 @@
 use super::{VitOps, VitResult, utils};
 use crate::MixedFloats;
 use burn::Tensor;
-use burn::prelude::Backend;
+use burn::prelude::Device;
 use ort::{
     memory::Allocator,
     session::{
@@ -32,13 +32,13 @@ impl PatchVitModel {
     }
 }
 
-impl<B: Backend> VitOps<B> for PatchVitModel {
+impl VitOps for PatchVitModel {
     fn forward<F: MixedFloats>(
         &mut self,
-        input: Tensor<B, 4>,
-        device: &B::Device,
-    ) -> Result<VitResult<B>, anyhow::Error> {
-        let data = input.try_into_data()?.to_vec().map_err(|err| {
+        input: Tensor<4>,
+        device: &Device,
+    ) -> Result<VitResult, anyhow::Error> {
+        let data = input.try_into_data()?.try_to_vec().map_err(|err| {
             anyhow::anyhow!("Unable to convert the tensor to a vector due to {err}")
         })?;
 
@@ -78,9 +78,9 @@ impl<B: Backend> VitOps<B> for PatchVitModel {
             .run_binding(&binding)
             .map_err(|err| anyhow::anyhow!("error while running the patch model: {err}"))?;
 
-        let tensor = utils::get_burn_tensor_from_ort::<B, 3, F>(&output, "final_output", device)?;
-        let hooks0 = utils::get_burn_tensor_from_ort::<B, 3, F>(&output, "hooks0", device)?;
-        let hooks1 = utils::get_burn_tensor_from_ort::<B, 3, F>(&output, "hooks1", device)?;
+        let tensor = utils::get_burn_tensor_from_ort::<3, F>(&output, "final_output", device)?;
+        let hooks0 = utils::get_burn_tensor_from_ort::<3, F>(&output, "hooks0", device)?;
+        let hooks1 = utils::get_burn_tensor_from_ort::<3, F>(&output, "hooks1", device)?;
 
         Ok(VitResult {
             tensor,

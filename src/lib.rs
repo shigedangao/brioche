@@ -18,7 +18,7 @@ use burn::{
     Tensor,
     backend::wgpu::FloatElement,
     nn::interpolate::{Interpolate2dConfig, InterpolateMode},
-    prelude::{Backend, Module},
+    prelude::{Device, Module},
 };
 #[cfg(feature = "ort_onnx")]
 use {
@@ -55,14 +55,14 @@ const CLAMP_MAX: f32 = 1e4;
 ///
 /// @link <https://github.com/apple/ml-depth-pro/blob/9efe5c1def37a26c5367a71df664b18e1306c708/src/depth_pro/depth_pro.py#L157>
 #[derive(Debug, Module)]
-pub struct Brioche<B: Backend> {
-    head: BriocheSeq<B>,
-    encoder: Encoder<B>,
-    decoder: MultiResConv<B>,
-    fov: Fov<B>,
+pub struct Brioche {
+    head: BriocheSeq,
+    encoder: Encoder,
+    decoder: MultiResConv,
+    fov: Fov,
 }
 
-impl<B: Backend> Brioche<B> {
+impl Brioche {
     /// Creates a new `Brioche` instance with the given configuration.
     ///
     /// # Arguments
@@ -85,13 +85,13 @@ impl<B: Backend> Brioche<B> {
         decoder_config: MultiResDecoderConfig,
         fov_config: FovConfig,
         head_config: BriocheHeadConfig,
-        device: &B::Device,
+        device: &Device,
     ) -> Result<Self> {
         Ok(Self {
-            head: BriocheSeq::<B>::new(NetworkConfig::Head(head_config), device)?,
-            encoder: Encoder::<B>::new(NetworkConfig::Encoder(encoder_config), device)?,
-            decoder: MultiResConv::<B>::new(NetworkConfig::Decoder(decoder_config), device)?,
-            fov: Fov::<B>::new(NetworkConfig::Fov(fov_config), device)?,
+            head: BriocheSeq::new(NetworkConfig::Head(head_config), device)?,
+            encoder: Encoder::new(NetworkConfig::Encoder(encoder_config), device)?,
+            decoder: MultiResConv::new(NetworkConfig::Decoder(decoder_config), device)?,
+            fov: Fov::new(NetworkConfig::Fov(fov_config), device)?,
         })
     }
 
@@ -154,16 +154,16 @@ impl<B: Backend> Brioche<B> {
     /// * `Tensor<B, 4>` - The field of view tensor.
     pub fn infer<F: MixedFloats>(
         &mut self,
-        inputs: (Tensor<B, 3>, Tensor<B, 3>),
+        inputs: (Tensor<3>, Tensor<3>),
         patch_encoder: PatchVitModel,
         image_encoder: CommonVitModel,
         img_size: usize,
-        device: &B::Device,
-    ) -> Result<(Tensor<B, 2>, Option<Tensor<B, 4>>)> {
+        device: &Device,
+    ) -> Result<(Tensor<2>, Option<Tensor<4>>)> {
         let (input, fov_x) = inputs;
 
         // Squeeze the tensor on the 0 dimension
-        let x: Tensor<B, 4> = input.unsqueeze_dim(0);
+        let x: Tensor<4> = input.unsqueeze_dim(0);
         // Perform the same squeeze on the fov input tensor
         let [_, _, h, w] = x.shape().dims();
 
@@ -210,7 +210,7 @@ impl<B: Backend> Brioche<B> {
             inverse_depth = inverse_depth_interpolate_fn.forward(inverse_depth);
         }
 
-        let depth: Tensor<B, 4> = 1. / inverse_depth.clamp(CLAMP_MIN, CLAMP_MAX);
+        let depth: Tensor<4> = 1. / inverse_depth.clamp(CLAMP_MIN, CLAMP_MAX);
 
         Ok((depth.squeeze(), f_px_squeeze))
     }
@@ -230,12 +230,12 @@ impl<B: Backend> Brioche<B> {
     /// * `fov_deg` - Field of view angle tensor of shape [`batch_size`, `channels`, `height`, `width`].
     pub fn forward<F: MixedFloats>(
         &mut self,
-        inputs: (Tensor<B, 4>, Tensor<B, 3>),
+        inputs: (Tensor<4>, Tensor<3>),
         patch_encoder: PatchVitModel,
         image_encoder: CommonVitModel,
         img_size: usize,
-        device: &B::Device,
-    ) -> Result<(Tensor<B, 4>, Tensor<B, 4>)> {
+        device: &Device,
+    ) -> Result<(Tensor<4>, Tensor<4>)> {
         let (input, fov_input) = inputs;
 
         let [_, _, h, w] = input.shape().dims();

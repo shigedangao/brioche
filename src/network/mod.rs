@@ -4,7 +4,7 @@ use crate::network::encoder::EncoderConfig;
 use crate::network::fov::FovConfig;
 use anyhow::{Result, anyhow};
 use burn::module::Module;
-use burn::prelude::Backend;
+use burn::prelude::Device;
 use burn_store::{ModuleSnapshot, PytorchStore};
 
 pub mod decoder;
@@ -19,7 +19,7 @@ pub enum NetworkConfig {
 }
 
 /// Network trait is a trait which defines the basic functionality of a network (encoder, decoder, fov).
-pub trait Network<B: Backend> {
+pub trait Network {
     /// Create a new network instance based on the provided configuration and device.
     ///
     /// # Arguments
@@ -30,7 +30,7 @@ pub trait Network<B: Backend> {
     /// # Returns
     ///
     /// A new network instance.
-    fn new(config: NetworkConfig, device: &B::Device) -> Result<Self>
+    fn new(config: NetworkConfig, device: &Device) -> Result<Self>
     where
         Self: Sized;
 
@@ -46,7 +46,7 @@ pub trait Network<B: Backend> {
     /// A new network instance with the weights loaded from the pt file.
     fn with_record<S>(mut self, path: S) -> Result<Self>
     where
-        Self: Sized + Module<B>,
+        Self: Sized + Module,
         S: AsRef<str>,
     {
         let mut store = PytorchStore::from_file(path.as_ref());

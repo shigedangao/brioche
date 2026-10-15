@@ -3,7 +3,7 @@ use crate::{
     vit::{VitOps, VitResult},
 };
 use anyhow::Result;
-use burn::prelude::Backend;
+use burn::prelude::Device;
 
 /// PatchVitModel is a wrapper around the patch model that implements the VitOps trait.
 pub struct PatchVitModel {}
@@ -15,13 +15,13 @@ impl PatchVitModel {
     }
 }
 
-impl<B: Backend> VitOps<B> for PatchVitModel {
+impl VitOps for PatchVitModel {
     fn forward<F: crate::MixedFloats>(
         &mut self,
-        input: burn::Tensor<B, 4>,
-        _: &B::Device,
-    ) -> Result<super::VitResult<B>> {
-        let model = Model::<B>::default();
+        input: burn::Tensor<4>,
+        _: &Device,
+    ) -> Result<super::VitResult> {
+        let model = Model::default();
 
         let (tensor, h0, h1) = model.forward(input);
 

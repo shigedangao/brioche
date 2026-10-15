@@ -12,7 +12,7 @@ use crate::vit::{common_burn::CommonVitModel, patch_burn::PatchVitModel};
 use crate::{vit, vit::VitOps};
 use anyhow::{Result, anyhow};
 use burn::{
-    prelude::{Backend, ToElement},
+    prelude::Device,
     tensor::{Tensor, Transaction},
 };
 use image::{ImageBuffer, Rgb};
@@ -47,15 +47,15 @@ const MULTIRES_DECODER_CONFIG: MultiResDecoderConfig = MultiResDecoderConfig {
 };
 
 // Custom type to hold the inference output
-type InferenceOutput<B> = (ImageBuffer<Rgb<u8>, Vec<u8>>, Option<Tensor<B, 4>>);
+type InferenceOutput = (ImageBuffer<Rgb<u8>, Vec<u8>>, Option<Tensor<4>>);
 
 /// Runner is a struct which helps to run the depth-pro model
-pub struct Four<B: Backend> {
-    model: Brioche<B>,
+pub struct Four {
+    model: Brioche,
     patch_model: PatchVitModel,
     image_model: CommonVitModel,
     fov_model: CommonVitModel,
-    gpu_device: B::Device,
+    gpu_device: Device,
 }
 
 /// Configuration in order to run the model
@@ -71,7 +71,7 @@ pub struct FourConfig<S: AsRef<str> + Clone> {
     pub vit_thread_nb: usize,
 }
 
-impl<B: Backend> Four<B> {
+impl Four {
     /// Create a new four.
     ///
     /// # Arguments
@@ -86,17 +86,19 @@ impl<B: Backend> Four<B> {
     ///
     /// # Returns
     /// Returns a new `Four` instance if successful, otherwise an error.
-    pub fn new<S: AsRef<str> + Clone + Send + Sync>(arg: FourConfig<S>) -> Result<Self> {
+    pub fn new<S: AsRef<str> + Clone + Send + Sync>(
+        arg: FourConfig<S>,
+        device: Device,
+    ) -> Result<Self> {
         let (patch_model, fov_model, image_model) = vit::utils::load_models(&arg)?;
-        let gpu_device = Default::default();
 
         // Create the brioche (depth-pro)model
-        let bm = Brioche::<B>::new(
+        let bm = Brioche::new(
             ENCODER_CONFIG,
             MULTIRES_DECODER_CONFIG,
             FOV_CONFIG,
             BRIOCHE_HEAD_CONFIG,
-            &gpu_device,
+            &device,
         )?
         .with_record(
             arg.decoder_weight_path,
@@ -110,7 +112,7 @@ impl<B: Backend> Four<B> {
             patch_model,
             image_model,
             fov_model,
-            gpu_device,
+            gpu_device: device,
         })
     }
 
@@ -126,17 +128,17 @@ impl<B: Backend> Four<B> {
         mut self,
         image_path: S,
         is_half_precision: bool,
-    ) -> Result<InferenceOutput<B>> {
+    ) -> Result<InferenceOutput> {
         let img = image::open(PathBuf::from(image_path.as_ref()))
             .map_err(|err| anyhow!("Unable to load the image due to {err}"))?;
 
-        let input = utils::preprocess_image::<B>(&img, &self.gpu_device, is_half_precision);
+        let input = utils::preprocess_image(&img, &self.gpu_device, is_half_precision);
 
         // Rescale at the beginning in order to speed up a little bit the inference
         let rescale_input = utils::rescale_image(&img, u32::try_from(FOV_ENCODER_IMG_SIZE)?);
 
         let fov_input_tensor =
-            utils::preprocess_image::<B>(&rescale_input, &self.gpu_device, is_half_precision);
+            utils::preprocess_image(&rescale_input, &self.gpu_device, is_half_precision);
 
         let fov_result = self
             .fov_model
@@ -150,22 +152,22 @@ impl<B: Backend> Four<B> {
             &self.gpu_device,
         )?;
 
-        let squeezed_depth: Tensor<B, 2> = depth.detach().squeeze();
+        let squeezed_depth: Tensor<2> = depth.detach().squeeze();
 
-        let inverse_depth: Tensor<B, 2> = 1. / squeezed_depth;
+        let inverse_depth: Tensor<2> = 1. / squeezed_depth;
         let inverse_depth_min_tensor = inverse_depth.clone().min();
         let inverse_depth_max_tensor = inverse_depth.clone().max();
 
-        let default_min = Tensor::<B, 1>::from_data([1. / 0.1], &self.gpu_device);
-        let default_max = Tensor::<B, 1>::from_data([1. / 250.], &self.gpu_device);
+        let default_min = Tensor::<1>::from_data([1. / 0.1], &self.gpu_device);
+        let default_max = Tensor::<1>::from_data([1. / 250.], &self.gpu_device);
 
         let min_invdepth_vizu_tensor = inverse_depth_min_tensor.min_pair(default_min);
         let max_invdepth_vizu_tensor = inverse_depth_max_tensor.max_pair(default_max);
 
         let [height, width] = inverse_depth.shape().dims();
 
-        let min_indepth_vizu_scalar = min_invdepth_vizu_tensor.into_scalar().to_f32();
-        let max_indepth_vizu_scalar = max_invdepth_vizu_tensor.into_scalar().to_f32();
+        let min_indepth_vizu_scalar = min_invdepth_vizu_tensor.into_scalar::<f32>();
+        let max_indepth_vizu_scalar = max_invdepth_vizu_tensor.into_scalar::<f32>();
 
         let inverse_depth_normalized_tensor = inverse_depth.sub_scalar(min_indepth_vizu_scalar)
             / (max_indepth_vizu_scalar - min_indepth_vizu_scalar);
@@ -176,7 +178,7 @@ impl<B: Backend> Four<B> {
 
         let Some(inverse_depth_normalized) = extracted_tensor
             .last()
-            .and_then(|t| t.to_vec::<f32>().ok())
+            .and_then(|t| t.try_to_vec::<f32>().ok())
             .and_then(|t| Array::from_shape_vec((height, width), t).ok())
         else {
             return Err(anyhow!("Unable to get the inverse depth matrix"));
