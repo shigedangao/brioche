@@ -122,11 +122,13 @@ pub(crate) mod utils {
     pub fn load_models<S: AsRef<str> + Clone + Send + Sync>(
         config: &FourConfig<S>,
     ) -> Result<(PatchVitModel, CommonVitModel, CommonVitModel)> {
+        let env = ort::init().build()?;
         let handles = thread::scope(|scope| {
             let patch_model = scope.spawn(|| {
                 PatchVitModel::new(
                     std::path::PathBuf::from(config.patch_vit_path.as_ref()),
                     config.vit_thread_nb,
+                    &env,
                 )
             });
 
@@ -134,6 +136,7 @@ pub(crate) mod utils {
                 CommonVitModel::new(
                     std::path::PathBuf::from(config.fov_vit_path.as_ref()),
                     config.vit_thread_nb,
+                    &env,
                 )
             });
 
@@ -141,6 +144,7 @@ pub(crate) mod utils {
                 CommonVitModel::new(
                     std::path::PathBuf::from(config.image_vit_path.as_ref()),
                     config.vit_thread_nb,
+                    &env,
                 )
             });
 

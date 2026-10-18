@@ -409,12 +409,15 @@ mod tests {
     fn expect_encoder_to_generate_something() {
         let device = Default::default();
         // Create a patch encoder. The weight is loaded from the .onnx.data file automatically.
+        let env = ort::init().build().unwrap();
         let patch_encoder =
-            PatchVitModel::new("butter/onnx_model/depthpro_vit_patch.onnx".into(), 4).unwrap();
+            PatchVitModel::new("butter/onnx_model/depthpro_vit_patch.onnx".into(), 4, &env)
+                .unwrap();
 
         // Create the image encoder
         let image_encoder =
-            CommonVitModel::new("butter/onnx_model/depthpro_vit_image.onnx".into(), 4).unwrap();
+            CommonVitModel::new("butter/onnx_model/depthpro_vit_image.onnx".into(), 4, &env)
+                .unwrap();
 
         // Create x
         let x_matrix: Array4<f32> =

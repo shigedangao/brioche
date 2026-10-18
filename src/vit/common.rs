@@ -3,6 +3,7 @@ use crate::MixedFloats;
 use anyhow::anyhow;
 use burn::{prelude::Device, tensor::Tensor};
 use ort::{
+    environment::Environment,
     memory::Allocator,
     session::{
         Session,
@@ -29,9 +30,13 @@ impl CommonVitModel {
     /// # Arguments
     /// * `model_path` - Path to the model file.
     /// * `thread_nb` - Number of threads to use for inference.
-    pub fn new(model_path: PathBuf, thread_nb: usize) -> Result<Self, ort::Error> {
-        let model = Session::builder()?
-            .with_auto_device(AutoDevicePolicy::MaxPerformance)?
+    pub fn new(
+        model_path: PathBuf,
+        thread_nb: usize,
+        env: &Environment,
+    ) -> Result<Self, ort::Error> {
+        let model = Session::builder(env)?
+            .with_auto_device(AutoDevicePolicy::Default)?
             .with_optimization_level(GraphOptimizationLevel::All)?
             .with_intra_threads(thread_nb)?
             .commit_from_file(model_path)?;
