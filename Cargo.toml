@@ -17,7 +17,7 @@ image = { version = "0.25.10" }
 ndarray = { version = "0.17.2" }
 ndarray-npy = { version = "0.10.0" }
 ndarray-stats = { version = "0.7.0" }
-ort = { version = "=2.0.0-rc.13", optional = true }
+ort = { version = "=2.0.0-rc.14", optional = true }
 
 [patch.crates-io]
 cubecl-hip-sys = { git = "https://github.com/shigedangao/cubecl-hip-sys.git", branch = "main" }

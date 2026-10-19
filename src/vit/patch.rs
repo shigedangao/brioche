@@ -3,6 +3,7 @@ use crate::MixedFloats;
 use burn::Tensor;
 use burn::prelude::Device;
 use ort::{
+    environment::Environment,
     memory::Allocator,
     session::{
         Session,
@@ -21,9 +22,13 @@ pub struct PatchVitModel {
 }
 
 impl PatchVitModel {
-    pub fn new(model_path: PathBuf, thread_nb: usize) -> Result<Self, ort::Error> {
-        let model = Session::builder()?
-            .with_auto_device(AutoDevicePolicy::MaxPerformance)?
+    pub fn new(
+        model_path: PathBuf,
+        thread_nb: usize,
+        env: &Environment,
+    ) -> Result<Self, ort::Error> {
+        let model = Session::builder(env)?
+            .with_auto_device(AutoDevicePolicy::Default)?
             .with_optimization_level(GraphOptimizationLevel::All)?
             .with_intra_threads(thread_nb)?
             .commit_from_file(model_path)?;
