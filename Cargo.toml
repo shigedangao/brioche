@@ -5,19 +5,19 @@ version = "0.1.0"
 
 [dependencies]
 anyhow = { version = "1.0.104" }
-burn = { version = "0.22.0", features = [
+burn = { version = "0.22.1", features = [
   "std",
   "wgpu",
   "flex",
   "fusion",
 ], default-features = false }
-burn-store = { version = "0.22.0" }
+burn-store = { version = "0.22.1" }
 colorgrad = { version = "0.8.0", features = ["preset"] }
 image = { version = "0.25.10" }
 ndarray = { version = "0.17.2" }
 ndarray-npy = { version = "0.10.0" }
 ndarray-stats = { version = "0.7.0" }
-ort = { version = "=2.0.0-rc.14", optional = true }
+ort = { version = "=2.0.0-rc.15", optional = true }
 
 [patch.crates-io]
 cubecl-hip-sys = { git = "https://github.com/shigedangao/cubecl-hip-sys.git", branch = "main" }
